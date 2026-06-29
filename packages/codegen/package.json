@@ -1,0 +1,21 @@
+{
+  "name": "@atoms-cp/codegen",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "pnpm --filter @atoms-cp/shared build && tsc -p tsconfig.json",
+    "typecheck": "pnpm --filter @atoms-cp/shared build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --filter @atoms-cp/shared build && vitest run",
+    "lint": "pnpm --filter @atoms-cp/shared build && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@atoms-cp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

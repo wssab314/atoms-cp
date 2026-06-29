@@ -1,0 +1,145 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: atoms
+      POSTGRES_PASSWORD: atoms
+      POSTGRES_DB: atoms_cp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atoms -d atoms_cp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATA_STORE: ${DATA_STORE:-postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgres://atoms:atoms@postgres:5432/atoms_cp}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      PORT: ${PORT:-4000}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-development-preview-access-secret}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-volcengine}
+      MODEL_BUDGET_CNY: ${MODEL_BUDGET_CNY:-25}
+      VOLCENGINE_API_KEY_FILE: ${VOLCENGINE_API_KEY_FILE:-}
+      VOLCENGINE_BASE_URL: ${VOLCENGINE_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      VOLCENGINE_MODEL: ${VOLCENGINE_MODEL:-doubao-seed-2-1-turbo-260628}
+      MODEL_REQUEST_TIMEOUT_MS: ${MODEL_REQUEST_TIMEOUT_MS:-60000}
+      PREVIEW_ROOT_DIR: ${PREVIEW_ROOT_DIR:-/tmp/atoms-cp-previews}
+      PREVIEW_ACCESS_SECRET: ${PREVIEW_ACCESS_SECRET:-development-preview-access-secret}
+    ports:
+      - "4000:4000"
+    volumes:
+      - preview-data:/tmp/atoms-cp-previews
+      - workspace-data:/tmp/atoms-cp-workspaces
+      - ${VOLCENGINE_HOST_API_KEY_FILE:-/tmp/atoms-cp-volcengine-api-key}:/run/secrets/volcengine_api_key:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  codex-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true
+    command: ["pnpm", "--filter", "@atoms-cp/api", "start:codex-worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATA_STORE: ${DATA_STORE:-postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgres://atoms:atoms@postgres:5432/atoms_cp}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      CODEX_WORKER_ID: ${CODEX_WORKER_ID:-codex-worker-local}
+      CODEX_WORKER_INTERVAL_MS: ${CODEX_WORKER_INTERVAL_MS:-3000}
+      CODEX_WORKER_MODE: ${CODEX_WORKER_MODE:-docker}
+      CODEX_WORKSPACE_ROOT: ${CODEX_WORKSPACE_ROOT:-/tmp/atoms-cp-workspaces}
+      CODEX_DOCKER_IMAGE: ${CODEX_DOCKER_IMAGE:-node:22-alpine}
+      CODEX_DOCKER_TIMEOUT_MS: ${CODEX_DOCKER_TIMEOUT_MS:-120000}
+      CODEX_DOCKER_LOG_MAX_BYTES: ${CODEX_DOCKER_LOG_MAX_BYTES:-65536}
+      CODEX_EXECUTION_IDLE_TIMEOUT_MS: ${CODEX_EXECUTION_IDLE_TIMEOUT_MS:-180000}
+      CODEX_EXECUTION_HEARTBEAT_MS: ${CODEX_EXECUTION_HEARTBEAT_MS:-30000}
+      CODEX_REAL_EXECUTION_ENABLED: ${CODEX_REAL_EXECUTION_ENABLED:-false}
+      CODEX_REAL_COMMAND: ${CODEX_REAL_COMMAND:-}
+      CODEX_DOCKER_NETWORK_MODE: ${CODEX_DOCKER_NETWORK_MODE:-none}
+      CODEX_OUTPUT_MAX_FILES: ${CODEX_OUTPUT_MAX_FILES:-200}
+      CODEX_OUTPUT_MAX_BYTES: ${CODEX_OUTPUT_MAX_BYTES:-5242880}
+      CODEX_EXECUTION_ENV_ALLOWLIST: ${CODEX_EXECUTION_ENV_ALLOWLIST:-}
+      CODEX_REAL_PREFLIGHT_ONLY: ${CODEX_REAL_PREFLIGHT_ONLY:-true}
+      CODEX_REAL_CANARY_ENABLED: ${CODEX_REAL_CANARY_ENABLED:-false}
+      CODEX_REAL_USER_TASKS_ENABLED: ${CODEX_REAL_USER_TASKS_ENABLED:-false}
+      CODEX_SECRET_MOUNT_PATH: ${CODEX_SECRET_MOUNT_PATH:-}
+      CODEX_SECRET_FILE: ${CODEX_SECRET_FILE:-/run/secrets/volcengine_api_key}
+      CODEX_REAL_TASK_LIMIT_PER_RUN: ${CODEX_REAL_TASK_LIMIT_PER_RUN:-1}
+      CODEX_REAL_DAILY_BUDGET_TASKS: ${CODEX_REAL_DAILY_BUDGET_TASKS:-3}
+      CODEX_REAL_MAX_RUNTIME_MS: ${CODEX_REAL_MAX_RUNTIME_MS:-600000}
+      CODEX_REAL_AUTO_DISABLE_ON_FAILURE: ${CODEX_REAL_AUTO_DISABLE_ON_FAILURE:-true}
+      CODEX_DOUBAO_MODEL: ${CODEX_DOUBAO_MODEL:-doubao-seed-2-1-turbo-260628}
+      CODEX_DOUBAO_BASE_URL: ${CODEX_DOUBAO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      CODEX_TASK_STALE_MS: ${CODEX_TASK_STALE_MS:-900000}
+      BUILD_JOB_STALE_MS: ${BUILD_JOB_STALE_MS:-900000}
+    volumes:
+      - workspace-data:/tmp/atoms-cp-workspaces
+      - ${VOLCENGINE_HOST_API_KEY_FILE:-/tmp/atoms-cp-volcengine-api-key}:/run/secrets/volcengine_api_key:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/builder-worker/Dockerfile
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgres://atoms:atoms@postgres:5432/atoms_cp}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      PREVIEW_BASE_URL: ${PREVIEW_BASE_URL:-http://localhost:4000/preview}
+      PREVIEW_ACCESS_SECRET: ${PREVIEW_ACCESS_SECRET:-development-preview-access-secret}
+      PREVIEW_ROOT_DIR: ${PREVIEW_ROOT_DIR:-/tmp/atoms-cp-previews}
+      BUILD_WORKSPACE_ROOT: ${BUILD_WORKSPACE_ROOT:-/tmp/atoms-cp-build-workspaces}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-3000}
+    volumes:
+      - preview-data:/tmp/atoms-cp-previews
+      - workspace-data:/tmp/atoms-cp-workspaces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  preview-data:
+  workspace-data:

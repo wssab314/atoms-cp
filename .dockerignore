@@ -1,0 +1,12 @@
+.git
+.DS_Store
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+coverage
+**/coverage
+*.log
+docs/reviews/*.png

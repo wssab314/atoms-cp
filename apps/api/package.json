@@ -1,0 +1,38 @@
+{
+  "name": "@atoms-cp/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @atoms-cp/shared build && pnpm --filter @atoms-cp/codegen build && tsx watch src/main.ts",
+    "build": "pnpm --filter @atoms-cp/shared build && pnpm --filter @atoms-cp/codegen build && tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:codex-worker": "node dist/codexWorker.js",
+    "codex-worker:oneshot": "tsx src/codexWorkerOneshot.ts",
+    "codex-worker:preflight": "tsx src/codexWorkerPreflight.ts",
+    "codex-worker:real-canary": "tsx src/codexWorkerRealCanary.ts",
+    "codex-worker:real-canary:report": "tsx src/codexWorkerRealCanaryReport.ts",
+    "cleanup:storage": "node dist/storageCleanup.js",
+    "smoke:internal-beta": "pnpm --filter @atoms-cp/shared build && pnpm --filter @atoms-cp/codegen build && tsx src/smokeInternalBeta.ts",
+    "dev:codex-worker": "tsx watch src/codexWorker.ts",
+    "typecheck": "pnpm --filter @atoms-cp/shared build && pnpm --filter @atoms-cp/codegen build && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@atoms-cp/codegen": "workspace:*",
+    "@atoms-cp/shared": "workspace:*",
+    "@fastify/cors": "^10.0.2",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.1.0",
+    "pg": "^8.22.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

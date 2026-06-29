@@ -1,0 +1,15 @@
+atoms.example.com {
+  encode zstd gzip
+  reverse_proxy atoms-cp-web:8080
+}
+
+atoms-api.example.com {
+  encode zstd gzip
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+
+  reverse_proxy atoms-cp-api:4000
+}

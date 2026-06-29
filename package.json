@@ -1,0 +1,27 @@
+{
+  "name": "atoms-cp",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @atoms-cp/api --filter @atoms-cp/web dev",
+    "dev:web": "pnpm --filter @atoms-cp/web dev",
+    "dev:api": "pnpm --filter @atoms-cp/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "docker:config": "docker compose config",
+    "docker:build:app": "docker build -f apps/api/Dockerfile -t atoms-cp-app:local .",
+    "docker:save:app": "docker save atoms-cp-app:local | gzip > atoms-cp-app.tar.gz",
+    "e2e": "playwright test",
+    "e2e:real-canary": "R9_1_REAL_CANARY=1 pnpm --filter @atoms-cp/api codex-worker:real-canary",
+    "e2e:real-local": "REAL_DOUBAO_E2E=1 playwright test -c playwright.real-local.config.ts tests/e2e/real-local-doubao.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

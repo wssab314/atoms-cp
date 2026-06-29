@@ -1,0 +1,195 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATA_STORE: postgres
+  AUTH_MODE: local
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  DATABASE_SCHEMA: ${DATABASE_SCHEMA:-atoms_cp}
+  REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+  REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-atoms_cp:}
+  PUBLIC_WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN:?PUBLIC_WEB_ORIGIN is required}
+  PUBLIC_API_ORIGIN: ${PUBLIC_API_ORIGIN:?PUBLIC_API_ORIGIN is required}
+  ALLOWED_CORS_ORIGINS: ${ALLOWED_CORS_ORIGINS:?ALLOWED_CORS_ORIGINS is required}
+  PREVIEW_BASE_URL: ${PREVIEW_BASE_URL:?PREVIEW_BASE_URL is required}
+  PREVIEW_ROOT_DIR: /var/lib/atoms-cp/previews
+  CODEX_WORKSPACE_ROOT: /var/lib/atoms-cp/workspaces
+  BUILD_WORKSPACE_ROOT: /var/lib/atoms-cp/build-workspaces
+  WORKSPACE_RETENTION_DAYS: ${WORKSPACE_RETENTION_DAYS:-7}
+  PREVIEW_RETENTION_DAYS: ${PREVIEW_RETENTION_DAYS:-14}
+  BUILD_MAX_CONCURRENT: ${BUILD_MAX_CONCURRENT:-1}
+  CODEX_TASK_STALE_MS: ${CODEX_TASK_STALE_MS:-900000}
+  BUILD_JOB_STALE_MS: ${BUILD_JOB_STALE_MS:-900000}
+  CODEX_DOCKER_LOG_MAX_BYTES: ${CODEX_DOCKER_LOG_MAX_BYTES:-65536}
+  CODEX_EXECUTION_IDLE_TIMEOUT_MS: ${CODEX_EXECUTION_IDLE_TIMEOUT_MS:-180000}
+  CODEX_EXECUTION_HEARTBEAT_MS: ${CODEX_EXECUTION_HEARTBEAT_MS:-30000}
+  CODEX_REAL_EXECUTION_ENABLED: ${CODEX_REAL_EXECUTION_ENABLED:-false}
+  CODEX_REAL_COMMAND: ${CODEX_REAL_COMMAND:-}
+  CODEX_DOCKER_NETWORK_MODE: ${CODEX_DOCKER_NETWORK_MODE:-none}
+  CODEX_OUTPUT_MAX_FILES: ${CODEX_OUTPUT_MAX_FILES:-200}
+  CODEX_OUTPUT_MAX_BYTES: ${CODEX_OUTPUT_MAX_BYTES:-5242880}
+  CODEX_EXECUTION_ENV_ALLOWLIST: ${CODEX_EXECUTION_ENV_ALLOWLIST:-}
+  CODEX_REAL_PREFLIGHT_ONLY: ${CODEX_REAL_PREFLIGHT_ONLY:-true}
+  CODEX_REAL_CANARY_ENABLED: ${CODEX_REAL_CANARY_ENABLED:-false}
+  CODEX_REAL_USER_TASKS_ENABLED: ${CODEX_REAL_USER_TASKS_ENABLED:-false}
+  CODEX_SECRET_MOUNT_PATH: ${CODEX_SECRET_MOUNT_PATH:-}
+  CODEX_REAL_TASK_LIMIT_PER_RUN: ${CODEX_REAL_TASK_LIMIT_PER_RUN:-1}
+  CODEX_REAL_DAILY_BUDGET_TASKS: ${CODEX_REAL_DAILY_BUDGET_TASKS:-3}
+  CODEX_REAL_MAX_RUNTIME_MS: ${CODEX_REAL_MAX_RUNTIME_MS:-600000}
+  CODEX_REAL_AUTO_DISABLE_ON_FAILURE: ${CODEX_REAL_AUTO_DISABLE_ON_FAILURE:-true}
+  CODEX_DOUBAO_MODEL: ${CODEX_DOUBAO_MODEL:-doubao-seed-2-1-turbo-260628}
+  CODEX_DOUBAO_BASE_URL: ${CODEX_DOUBAO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+  INTERNAL_BETA_SMOKE_MODE: ${INTERNAL_BETA_SMOKE_MODE:-deterministic}
+  PREVIEW_ACCESS_SECRET: ${PREVIEW_ACCESS_SECRET:?PREVIEW_ACCESS_SECRET is required}
+  GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY:?GITHUB_TOKEN_ENCRYPTION_KEY is required}
+  CONNECTOR_TOKEN_ENCRYPTION_KEY: ${CONNECTOR_TOKEN_ENCRYPTION_KEY:?CONNECTOR_TOKEN_ENCRYPTION_KEY is required}
+
+services:
+  web:
+    image: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required}
+    command: ["node", "scripts/serve-web-static.mjs"]
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      WEB_STATIC_ROOT: /app/apps/web/dist
+      WEB_STATIC_PORT: 8080
+      WEB_API_PROXY_ORIGIN: ${WEB_API_PROXY_ORIGIN:-}
+    expose:
+      - "8080"
+    networks:
+      atoms_edge:
+        aliases:
+          - atoms-cp-web
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+    cpus: "0.35"
+    mem_limit: 128m
+
+  api:
+    image: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required}
+    command: ["pnpm", "--filter", "@atoms-cp/api", "start"]
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      <<: *app-env
+      PORT: 4000
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-volcengine}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-pro}
+      DEEPSEEK_FALLBACK_MODEL: ${DEEPSEEK_FALLBACK_MODEL:-deepseek-v4-flash}
+      VOLCENGINE_API_KEY_FILE: ${VOLCENGINE_API_KEY_FILE:-}
+      VOLCENGINE_BASE_URL: ${VOLCENGINE_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      VOLCENGINE_MODEL: ${VOLCENGINE_MODEL:-doubao-seed-2-1-turbo-260628}
+      MODEL_REQUEST_TIMEOUT_MS: ${MODEL_REQUEST_TIMEOUT_MS:-60000}
+      MODEL_BUDGET_CNY: ${MODEL_BUDGET_CNY:-25}
+      ADMIN_BOOTSTRAP_EMAILS: ${ADMIN_BOOTSTRAP_EMAILS:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://atoms-api.example.com/api/connectors/github/oauth/callback}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      VERCEL_TOKEN: ${VERCEL_TOKEN:-}
+      VERCEL_TEAM_ID: ${VERCEL_TEAM_ID:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+    expose:
+      - "4000"
+    volumes:
+      - atoms-preview-data:/var/lib/atoms-cp/previews
+      - atoms-workspace-data:/var/lib/atoms-cp/workspaces
+      - atoms-build-data:/var/lib/atoms-cp/build-workspaces
+    networks:
+      atoms_edge:
+        aliases:
+          - atoms-cp-api
+      atoms_shared: {}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+    cpus: "0.75"
+    mem_limit: 768m
+
+  builder-worker:
+    image: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required}
+    command: ["pnpm", "--filter", "@atoms-cp/builder-worker", "start"]
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      <<: *app-env
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-5000}
+    volumes:
+      - atoms-preview-data:/var/lib/atoms-cp/previews
+      - atoms-workspace-data:/var/lib/atoms-cp/workspaces
+      - atoms-build-data:/var/lib/atoms-cp/build-workspaces
+    networks:
+      atoms_shared: {}
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+    cpus: "1.00"
+    mem_limit: 1536m
+
+  codex-worker:
+    image: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required}
+    command: ["pnpm", "--filter", "@atoms-cp/api", "start:codex-worker"]
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      <<: *app-env
+      CODEX_WORKER_ID: ${CODEX_WORKER_ID:-codex-worker-prod}
+      CODEX_WORKER_INTERVAL_MS: ${CODEX_WORKER_INTERVAL_MS:-5000}
+      CODEX_WORKER_MODE: ${CODEX_WORKER_MODE:-docker}
+      CODEX_DOCKER_IMAGE: ${CODEX_DOCKER_IMAGE:-node:22-alpine}
+      CODEX_DOCKER_TIMEOUT_MS: ${CODEX_DOCKER_TIMEOUT_MS:-120000}
+    volumes:
+      - atoms-workspace-data:/var/lib/atoms-cp/workspaces
+    networks:
+      atoms_shared: {}
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+    cpus: "0.75"
+    mem_limit: 1024m
+
+volumes:
+  atoms-preview-data:
+  atoms-workspace-data:
+  atoms-build-data:
+
+networks:
+  atoms_edge:
+    external: true
+    name: ${ATOMS_EDGE_NETWORK:-atoms-edge}
+  atoms_shared:
+    external: true
+    name: ${ATOMS_SHARED_NETWORK:-atoms-shared}

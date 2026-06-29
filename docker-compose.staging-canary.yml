@@ -1,0 +1,45 @@
+services:
+  api:
+    environment:
+      CODEX_WORKER_MODE: docker
+      CODEX_REAL_EXECUTION_ENABLED: "true"
+      CODEX_REAL_CANARY_ENABLED: "true"
+      CODEX_REAL_PREFLIGHT_ONLY: "false"
+      CODEX_DOCKER_NETWORK_MODE: bridge
+      CODEX_SECRET_MOUNT_PATH: /run/secrets/codex_api_key
+      CODEX_DOCKER_IMAGE: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required for staging canary}
+      CODEX_REAL_TASK_LIMIT_PER_RUN: "1"
+      CODEX_REAL_DAILY_BUDGET_TASKS: ${CODEX_REAL_DAILY_BUDGET_TASKS:-3}
+      CODEX_REAL_MAX_RUNTIME_MS: ${CODEX_REAL_MAX_RUNTIME_MS:-600000}
+      CODEX_REAL_AUTO_DISABLE_ON_FAILURE: "true"
+      CODEX_EXECUTION_ENV_ALLOWLIST: CODEX_DOUBAO_MODEL,CODEX_DOUBAO_BASE_URL
+      CODEX_DOUBAO_MODEL: ${CODEX_DOUBAO_MODEL:-doubao-seed-2-1-turbo-260628}
+      CODEX_DOUBAO_BASE_URL: ${CODEX_DOUBAO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      CODEX_REAL_COMMAND: ${CODEX_REAL_COMMAND:-/app/scripts/codex-doubao21-exec.sh}
+
+  codex-worker:
+    image: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required for staging canary}
+    command: ["pnpm", "--filter", "@atoms-cp/api", "codex-worker:real-canary"]
+    restart: "no"
+    environment:
+      CODEX_WORKER_MODE: docker
+      CODEX_REAL_EXECUTION_ENABLED: "true"
+      CODEX_REAL_CANARY_ENABLED: "true"
+      CODEX_REAL_PREFLIGHT_ONLY: "false"
+      CODEX_DOCKER_NETWORK_MODE: bridge
+      CODEX_SECRET_MOUNT_PATH: /run/secrets/codex_api_key
+      CODEX_DOCKER_IMAGE: ${ATOMS_APP_IMAGE:?ATOMS_APP_IMAGE is required for staging canary}
+      CODEX_REAL_TASK_LIMIT_PER_RUN: "1"
+      CODEX_REAL_DAILY_BUDGET_TASKS: ${CODEX_REAL_DAILY_BUDGET_TASKS:-3}
+      CODEX_REAL_MAX_RUNTIME_MS: ${CODEX_REAL_MAX_RUNTIME_MS:-600000}
+      CODEX_REAL_AUTO_DISABLE_ON_FAILURE: "true"
+      CODEX_EXECUTION_ENV_ALLOWLIST: CODEX_DOUBAO_MODEL,CODEX_DOUBAO_BASE_URL
+      CODEX_DOUBAO_MODEL: ${CODEX_DOUBAO_MODEL:-doubao-seed-2-1-turbo-260628}
+      CODEX_DOUBAO_BASE_URL: ${CODEX_DOUBAO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      CODEX_REAL_COMMAND: ${CODEX_REAL_COMMAND:-/app/scripts/codex-doubao21-exec.sh}
+    secrets:
+      - codex_api_key
+
+secrets:
+  codex_api_key:
+    file: ${CODEX_SECRET_FILE:?CODEX_SECRET_FILE is required for staging canary}
