@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { previewSnapshotActivationResultSchema } from '@atoms-cp/shared';
 import { loadEnv } from '../config/env.js';
 import { resolveRequestUser } from '../modules/auth/requestUser.js';
+import { isRealUserTaskExecutionAllowed } from '../modules/codex/realUserTaskGate.js';
 import type { AppStore } from '../modules/data/appStore.js';
 import { createInitialCodexTaskPlan } from '../modules/orchestrator/codexTaskPlanner.js';
 
@@ -78,15 +79,11 @@ export async function registerCodexTaskRoutes(app: FastifyInstance, store: AppSt
     }
 
     const env = loadEnv();
+    const requestUser = resolveRequestUser(request);
 
     if (
       env.NODE_ENV !== 'test'
-      && (
-        !['docker', 'container'].includes(env.CODEX_WORKER_MODE)
-        || !env.CODEX_REAL_EXECUTION_ENABLED
-        || env.CODEX_REAL_PREFLIGHT_ONLY
-        || !env.CODEX_REAL_USER_TASKS_ENABLED
-      )
+      && !isRealUserTaskExecutionAllowed(env, requestUser.email)
     ) {
       return reply.code(409).send({
         error: 'Real Codex worker execution is not enabled for user tasks'

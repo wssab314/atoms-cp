@@ -780,8 +780,37 @@ function LoginPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    api.fetchAuthSettings()
+      .then((settings) => {
+        if (!mounted) {
+          return;
+        }
+
+        setRegistrationEnabled(settings.registrationEnabled);
+        if (!settings.registrationEnabled) {
+          setMode('login');
+        }
+      })
+      .catch(() => {
+        if (!mounted) {
+          return;
+        }
+
+        setRegistrationEnabled(false);
+        setMode('login');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -797,6 +826,10 @@ function LoginPage() {
     setError('');
     try {
       if (mode === 'register') {
+        if (!registrationEnabled) {
+          setError('注册入口已关闭，请使用已分配的测试账号登录');
+          return;
+        }
         await api.registerLocalUser({ email, password, name: name.trim() || undefined });
       } else {
         await api.loginLocalUser({ email, password });
@@ -826,13 +859,15 @@ function LoginPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: registrationEnabled ? '1fr 1fr' : '1fr', gap: '8px', marginBottom: '16px' }}>
           <button type="button" className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('login')}>登录</button>
-          <button type="button" className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('register')}>注册</button>
+          {registrationEnabled && (
+            <button type="button" className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('register')}>注册</button>
+          )}
         </div>
 
         <form className="login-form" onSubmit={handleAuthSubmit}>
-          {mode === 'register' && (
+          {mode === 'register' && registrationEnabled && (
             <div className="login-form-group">
               <label className="login-label" htmlFor="name-input">昵称</label>
               <input

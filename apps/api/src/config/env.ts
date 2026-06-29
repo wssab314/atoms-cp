@@ -41,6 +41,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
   REDIS_KEY_PREFIX: z.string().min(1).default('atoms_cp:'),
   AUTH_MODE: z.enum(['local']).default('local'),
+  LOCAL_AUTH_REGISTRATION_ENABLED: booleanEnvSchema.default(true),
   AUTH_SESSION_SECRET: z.string().min(12).default(developmentSecrets.PREVIEW_ACCESS_SECRET),
   AUTH_SESSION_TTL_DAYS: z.coerce.number().int().positive().max(30).default(7),
   MODEL_PROVIDER: z.enum(['deepseek', 'volcengine']).default('volcengine'),
@@ -92,6 +93,7 @@ const envSchema = z.object({
   CODEX_REAL_PREFLIGHT_ONLY: booleanEnvSchema.default(true),
   CODEX_REAL_CANARY_ENABLED: booleanEnvSchema.default(false),
   CODEX_REAL_USER_TASKS_ENABLED: booleanEnvSchema.default(false),
+  CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST: z.string().default(''),
   CODEX_SECRET_MOUNT_PATH: z.string().default(''),
   CODEX_REAL_TASK_LIMIT_PER_RUN: z.coerce.number().int().positive().max(10).default(1),
   CODEX_REAL_DAILY_BUDGET_TASKS: z.coerce.number().int().positive().max(10).default(3),
@@ -179,18 +181,35 @@ const envSchema = z.object({
   }
 
   if (env.CODEX_REAL_EXECUTION_ENABLED) {
-    if (!env.CODEX_REAL_CANARY_ENABLED) {
+    if (env.CODEX_REAL_USER_TASKS_ENABLED) {
+      if (parseEmailAllowlist(env.CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST).length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST'],
+          message: 'CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST is required for production real user execution'
+        });
+      }
+
+      if (env.CODEX_WORKER_MODE !== 'container') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CODEX_WORKER_MODE'],
+          message: 'CODEX_WORKER_MODE=container is required for production real user execution'
+        });
+      }
+
+      if (env.CODEX_REAL_PREFLIGHT_ONLY) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CODEX_REAL_PREFLIGHT_ONLY'],
+          message: 'CODEX_REAL_PREFLIGHT_ONLY=false is required for production real user execution'
+        });
+      }
+    } else if (!env.CODEX_REAL_CANARY_ENABLED) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['CODEX_REAL_CANARY_ENABLED'],
         message: 'CODEX_REAL_CANARY_ENABLED=true is required for production real execution'
-      });
-    }
-    if (env.CODEX_REAL_USER_TASKS_ENABLED) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['CODEX_REAL_USER_TASKS_ENABLED'],
-        message: 'CODEX_REAL_USER_TASKS_ENABLED must stay false in production'
       });
     }
 
@@ -249,6 +268,15 @@ export function parseExecutionEnvAllowlist(value: string | undefined): string[] 
       .split(',')
       .map((name) => name.trim())
       .filter((name) => name.length > 0)
+  )];
+}
+
+export function parseEmailAllowlist(value: string | undefined): string[] {
+  return [...new Set(
+    (value ?? '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
   )];
 }
 

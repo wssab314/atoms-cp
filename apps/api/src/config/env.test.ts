@@ -31,6 +31,8 @@ describe('API environment config', () => {
     expect(env.CODEX_REAL_PREFLIGHT_ONLY).toBe(true);
     expect(env.CODEX_REAL_CANARY_ENABLED).toBe(false);
     expect(env.CODEX_REAL_USER_TASKS_ENABLED).toBe(false);
+    expect(env.CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST).toBe('');
+    expect(env.LOCAL_AUTH_REGISTRATION_ENABLED).toBe(true);
     expect(env.CODEX_SECRET_MOUNT_PATH).toBe('');
     expect(env.CODEX_REAL_TASK_LIMIT_PER_RUN).toBe(1);
     expect(env.CODEX_REAL_DAILY_BUDGET_TASKS).toBe(3);
@@ -182,7 +184,7 @@ describe('API environment config', () => {
       CODEX_REAL_CANARY_ENABLED: 'true',
       CODEX_REAL_USER_TASKS_ENABLED: 'true',
       CODEX_SECRET_MOUNT_PATH: '/run/secrets/codex_api_key'
-    })).toThrow(/CODEX_REAL_USER_TASKS_ENABLED/);
+    })).toThrow(/CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST/);
 
     expect(() => loadEnv({
       ...productionBase,
@@ -203,5 +205,41 @@ describe('API environment config', () => {
     expect(env.NODE_ENV).toBe('production');
     expect(env.CODEX_REAL_CANARY_ENABLED).toBe(true);
     expect(env.CODEX_SECRET_MOUNT_PATH).toBe('/run/secrets/codex_api_key');
+  });
+
+  it('allows production real user tasks only with container mode and an explicit email allowlist', () => {
+    const productionBase = {
+      NODE_ENV: 'production',
+      PUBLIC_WEB_ORIGIN: 'https://atslab.top',
+      PUBLIC_API_ORIGIN: 'https://atslab.top',
+      ALLOWED_CORS_ORIGINS: 'https://atslab.top',
+      GITHUB_TOKEN_ENCRYPTION_KEY: 'prod-github-token-key-32-characters',
+      CONNECTOR_TOKEN_ENCRYPTION_KEY: 'prod-connector-token-key-32-chars',
+      PREVIEW_ACCESS_SECRET: 'prod-preview-access-secret-32-chars',
+      CODEX_WORKER_MODE: 'container',
+      CODEX_REAL_EXECUTION_ENABLED: 'true',
+      CODEX_REAL_COMMAND: '/app/scripts/codex-doubao21-exec.sh',
+      CODEX_REAL_PREFLIGHT_ONLY: 'false',
+      CODEX_REAL_USER_TASKS_ENABLED: 'true',
+      CODEX_SECRET_MOUNT_PATH: '/run/secrets/volcengine_api_key'
+    };
+
+    expect(() => loadEnv(productionBase)).toThrow(/CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST/);
+
+    expect(() => loadEnv({
+      ...productionBase,
+      CODEX_WORKER_MODE: 'docker',
+      CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST: 'test@atslab.top'
+    })).toThrow(/CODEX_WORKER_MODE/);
+
+    const env = loadEnv({
+      ...productionBase,
+      CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST: ' Test@AtsLab.Top , test@atslab.top '
+    });
+
+    expect(env.NODE_ENV).toBe('production');
+    expect(env.CODEX_WORKER_MODE).toBe('container');
+    expect(env.CODEX_REAL_USER_TASKS_ENABLED).toBe(true);
+    expect(env.CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST).toContain('Test@AtsLab.Top');
   });
 });

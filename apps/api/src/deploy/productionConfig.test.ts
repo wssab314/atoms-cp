@@ -37,6 +37,24 @@ describe('production deployment config', () => {
     expect(caddy).toContain('reverse_proxy atoms-cp-api:4000');
   });
 
+  it('defines the atslab takeover stack as same-origin, closed-registration beta deployment', async () => {
+    const compose = await readFile(join(repoRoot, 'docker-compose.atslab.yml'), 'utf8');
+    const caddy = await readFile(join(repoRoot, 'infra/caddy/Caddyfile.atslab'), 'utf8');
+
+    expect(compose.match(/image: \$\{ATOMS_APP_IMAGE/g)).toHaveLength(4);
+    expect(compose).toContain('image: caddy:2.8-alpine');
+    expect(compose).toContain('"80:80"');
+    expect(compose).toContain('"443:443"');
+    expect(compose).toContain('WEB_API_PROXY_ORIGIN: http://api:4000');
+    expect(compose).toContain('LOCAL_AUTH_REGISTRATION_ENABLED: ${LOCAL_AUTH_REGISTRATION_ENABLED:-false}');
+    expect(compose).toContain('CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST: ${CODEX_REAL_USER_TASK_EMAIL_ALLOWLIST:-test@atslab.top}');
+    expect(compose).toContain('./secrets:/run/atoms-cp-secrets:ro');
+    expect(compose).not.toContain('5432:5432');
+    expect(compose).not.toContain('6379:6379');
+    expect(caddy).toContain('atslab.top');
+    expect(caddy).toContain('reverse_proxy web:8080');
+  });
+
   it('keeps real Codex execution in an explicit staging canary override', async () => {
     const staging = await readFile(join(repoRoot, 'docker-compose.staging-canary.yml'), 'utf8');
 

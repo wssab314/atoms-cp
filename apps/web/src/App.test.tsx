@@ -14,6 +14,9 @@ vi.mock('./api', () => {
       { id: 'sales-dashboard', name: '销售数据看板', status: 'deployed', updatedAt: '2026-06-28T14:32:00Z' }
     ]),
     isUnauthorizedError: vi.fn().mockReturnValue(false),
+    fetchAuthSettings: vi.fn().mockResolvedValue({
+      registrationEnabled: true
+    }),
     createProject: vi.fn().mockResolvedValue({
       id: 'created-proj-123',
       name: '新应用草稿',
@@ -291,6 +294,16 @@ describe('Quiet App Builder Front-end Shell R1.1', () => {
     it('renders the login page correctly', async () => {
       renderAt('/login');
       expect(await screen.findByRole('heading', { name: /登录灵感工坊/i })).toBeInTheDocument();
+    });
+
+    it('hides registration controls when local registration is disabled', async () => {
+      vi.mocked(api.fetchAuthSettings).mockResolvedValueOnce({
+        registrationEnabled: false
+      });
+      renderAt('/login');
+
+      expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '注册' })).not.toBeInTheDocument();
     });
 
     it('renders the dashboard page correctly', async () => {

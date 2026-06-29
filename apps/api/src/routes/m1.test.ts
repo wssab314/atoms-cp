@@ -94,6 +94,47 @@ describe('M1 API routes', () => {
     });
   });
 
+  it('can disable public local registration while keeping login and auth settings available', async () => {
+    vi.stubEnv('AUTH_MODE', 'local');
+    vi.stubEnv('AUTH_SESSION_SECRET', 'test-local-auth-session-secret-32');
+    vi.stubEnv('LOCAL_AUTH_REGISTRATION_ENABLED', 'false');
+    const app = await createServer();
+
+    await withApp(app, async (server) => {
+      const settings = await server.inject({
+        method: 'GET',
+        url: '/api/auth/settings'
+      });
+      expect(settings.statusCode).toBe(200);
+      expect(settings.json()).toEqual({
+        registrationEnabled: false
+      });
+
+      const registered = await server.inject({
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: {
+          email: 'blocked@example.com',
+          password: 'correct horse battery staple'
+        }
+      });
+      expect(registered.statusCode).toBe(404);
+      expect(registered.json()).toMatchObject({
+        error: 'Local registration is disabled'
+      });
+
+      const login = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: 'blocked@example.com',
+          password: 'correct horse battery staple'
+        }
+      });
+      expect(login.statusCode).toBe(401);
+    });
+  });
+
   it('assigns local auth admin role only to configured bootstrap emails', async () => {
     vi.stubEnv('AUTH_MODE', 'local');
     vi.stubEnv('AUTH_SESSION_SECRET', 'test-local-auth-session-secret-32');

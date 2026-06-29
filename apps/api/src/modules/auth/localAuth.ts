@@ -143,6 +143,7 @@ export function registerLocalAuthHook(app: FastifyInstance, store: AppStore, env
     const path = request.url.split('?')[0] ?? '';
     const publicPath = path === '/api/auth/register'
       || path === '/api/auth/login'
+      || path === '/api/auth/settings'
       || path === '/api/health'
       || path.startsWith('/preview/')
       || path.startsWith('/api/internal/e2e/');

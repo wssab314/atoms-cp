@@ -30,6 +30,13 @@ function localAuthRoleForEmail(email: string, env: ReturnType<typeof loadEnv>): 
 }
 
 export async function registerAuthRoutes(app: FastifyInstance, store: AppStore): Promise<void> {
+  app.get('/api/auth/settings', async () => {
+    const env = loadEnv();
+    return {
+      registrationEnabled: env.AUTH_MODE === 'local' && env.LOCAL_AUTH_REGISTRATION_ENABLED
+    };
+  });
+
   app.get('/api/auth/me', async (request, reply) => {
     const env = loadEnv();
 
@@ -54,6 +61,10 @@ export async function registerAuthRoutes(app: FastifyInstance, store: AppStore):
 
     if (env.AUTH_MODE !== 'local') {
       return reply.code(404).send({ error: 'Local auth is disabled' });
+    }
+
+    if (!env.LOCAL_AUTH_REGISTRATION_ENABLED) {
+      return reply.code(404).send({ error: 'Local registration is disabled' });
     }
 
     try {

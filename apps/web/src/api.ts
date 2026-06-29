@@ -645,6 +645,10 @@ export function registerLocalUser(input: { email: string; password: string; name
   });
 }
 
+export function fetchAuthSettings(): Promise<{ registrationEnabled: boolean }> {
+  return requestJson<{ registrationEnabled: boolean }>('/api/auth/settings');
+}
+
 export function loginLocalUser(input: { email: string; password: string }): Promise<UserProfile> {
   return requestJson<UserProfile>('/api/auth/login', {
     method: 'POST',

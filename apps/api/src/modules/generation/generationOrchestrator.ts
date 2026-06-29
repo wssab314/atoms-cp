@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createDefaultDesignProfiles } from '@atoms-cp/codegen';
 import type { CodexTaskRecord, ProjectDetail, ProjectStatus } from '@atoms-cp/shared';
 import { getModelRuntimeConfig, loadEnv, type ApiEnv } from '../../config/env.js';
+import { isRealUserTaskExecutionAllowed } from '../codex/realUserTaskGate.js';
 import type { AppStore } from '../data/appStore.js';
 import { createModelClient } from '../model/modelClient.js';
 import { createInitialCodexTaskPlan } from '../orchestrator/codexTaskPlanner.js';
@@ -173,12 +174,7 @@ async function createInitialGenerationTask(input: {
 
   if (
     input.env.NODE_ENV !== 'test'
-    && (
-      !['docker', 'container'].includes(input.env.CODEX_WORKER_MODE)
-      || !input.env.CODEX_REAL_EXECUTION_ENABLED
-      || input.env.CODEX_REAL_PREFLIGHT_ONLY
-      || !input.env.CODEX_REAL_USER_TASKS_ENABLED
-    )
+    && !isRealUserTaskExecutionAllowed(input.env, await getProjectOwnerEmail(input.store, input.project))
   ) {
     await input.store.appendTraceEvent({
       projectId: input.project.id,
@@ -373,6 +369,11 @@ function sanitizeUserError(rawError: string | undefined): string {
 
 function compareUpdatedOrCreatedDesc(a: CodexTaskRecord, b: CodexTaskRecord): number {
   return new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime();
+}
+
+async function getProjectOwnerEmail(store: AppStore, project: ProjectDetail): Promise<string | undefined> {
+  const users = await store.listUsers();
+  return users.find((user) => user.id === project.ownerId)?.email;
 }
 
 function getModelApiKey(env: ApiEnv, provider: ApiEnv['MODEL_PROVIDER']): string | undefined {

@@ -12,6 +12,7 @@
     "codex-worker:preflight": "tsx src/codexWorkerPreflight.ts",
     "codex-worker:real-canary": "tsx src/codexWorkerRealCanary.ts",
     "codex-worker:real-canary:report": "tsx src/codexWorkerRealCanaryReport.ts",
+    "auth:seed-user": "tsx src/authSeedUser.ts",
     "cleanup:storage": "node dist/storageCleanup.js",
     "smoke:internal-beta": "pnpm --filter @atoms-cp/shared build && pnpm --filter @atoms-cp/codegen build && tsx src/smokeInternalBeta.ts",
     "dev:codex-worker": "tsx watch src/codexWorker.ts",

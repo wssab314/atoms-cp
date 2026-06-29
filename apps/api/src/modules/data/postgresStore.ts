@@ -663,6 +663,7 @@ export function createPostgresStore(db: Queryable, close?: () => Promise<void>):
            values ($1, $2, $3, $4, now())
            on conflict (email) do update
            set name = excluded.name,
+               role = excluded.role,
                password_hash = excluded.password_hash,
                updated_at = now()
            returning id, email, name, role`,
