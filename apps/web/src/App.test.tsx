@@ -558,6 +558,36 @@ describe('Quiet App Builder Front-end Shell R1.1', () => {
       unmount();
     });
 
+    it('maps the WeChat mini program platform to the mini_program project target', async () => {
+      const { findByPlaceholderText, findByText, unmount } = renderAt('/dashboard');
+
+      const platformButton = await findByText(/平台: Web 网页/i);
+      await act(async () => {
+        platformButton.click();
+      });
+      const miniProgramOption = await findByText('微信小程序');
+      await act(async () => {
+        miniProgramOption.click();
+      });
+
+      const textarea = await findByPlaceholderText(/描述你的应用想法/i);
+      await act(async () => {
+        fireEvent.change(textarea, { target: { value: '帮我生成一个用于门店预约服务的微信小程序' } });
+      });
+
+      const btn = await findByText('开始生成');
+      await act(async () => {
+        btn.click();
+      });
+
+      expect(api.createProject).toHaveBeenCalledWith(expect.objectContaining({
+        target: 'mini_program'
+      }));
+      expect(api.startProjectGeneration).toHaveBeenCalledWith('created-proj-123');
+
+      unmount();
+    });
+
     it('shows observable generation stages on the generating page', async () => {
       const statusSpy = vi.spyOn(api, 'fetchProjectGenerationStatus').mockResolvedValueOnce({
         projectId: 'real-proj-id',

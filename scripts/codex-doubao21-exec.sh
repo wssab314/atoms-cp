@@ -8,6 +8,7 @@ provider_name="volcengine_doubao21"
 model="${CODEX_DOUBAO_MODEL:-doubao-seed-2-1-turbo-260628}"
 base_url="${CODEX_DOUBAO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}"
 project_dir="${CODEX_PROJECT_DIR:-/workspace/project}"
+executor="${CODEX_DOUBAO_EXECUTOR:-chat_codegen}"
 
 case "$secret_file" in
   /*) ;;
@@ -34,6 +35,18 @@ if [ ! -d "$project_dir" ]; then
   echo "Codex project directory is not available." >&2
   exit 66
 fi
+
+case "$executor" in
+  chat_codegen)
+    exec node /app/scripts/doubao-chat-codegen.mjs
+    ;;
+  codex_cli)
+    ;;
+  *)
+    echo "CODEX_DOUBAO_EXECUTOR must be chat_codegen or codex_cli." >&2
+    exit 64
+    ;;
+esac
 
 mkdir -p "$codex_home"
 umask 077
@@ -69,9 +82,9 @@ if [ -n "${CODEX_TASK_INSTRUCTION_FILE:-}" ]; then
   fi
   instruction_path="$CODEX_TASK_INSTRUCTION_FILE"
   echo 'ATOMS_PROGRESS {"stage":"coding_app","stepKey":"read_task","status":"progress","message":"正在读取任务说明。"}'
-  prompt="${CODEX_REAL_PROMPT:-You are the atoms-cp implementation agent. Read the structured task instruction file at $instruction_path before editing. Implement the requested app inside $project_dir only. The workspace starts from a controlled scaffold, so you must make concrete product-specific edits to at least one allowed file, preferably src/App.tsx, src/styles/tokens.css, and ai-manifest.json. Do not run package installation, dependency installation, build, typecheck, test, dev server, or preview commands. Do not create node_modules, dist, lockfiles, caches, or hidden configuration files. The platform validates and builds after you exit. Preserve data-ai-id attributes, keep ai-manifest.json valid, edit only allowed source/public/root app files, and avoid implementation jargon in user-facing copy. Finish as soon as source edits are complete; do not wait for local validation. Do not finish with no file changes.}"
+  prompt="${CODEX_REAL_PROMPT:-You are the atoms-cp implementation agent. Read the structured task instruction file at $instruction_path before editing. Implement the requested app inside $project_dir only. The workspace starts from a controlled scaffold, so you must make concrete product-specific edits to at least one allowed file. Use only the platform-installed imports listed in dependencyPolicy.allowedImports from the task instruction file. Do not edit package.json, lockfiles, tsconfig.json, vite.config.ts, Taro config files, pnpm-workspace.yaml, or any dependency/configuration file unless the instruction file explicitly allows it. Do not run package installation, dependency installation, build, typecheck, test, dev server, or preview commands. Do not create node_modules, dist, lockfiles, caches, or hidden configuration files. The platform validates and builds after you exit. Preserve data-ai-id attributes, keep ai-manifest.json valid, and make every manifest entry file point to an actual source file you edited. For Taro mini programs, manifest file values must use real paths such as src/pages/index/index.tsx, never src/App.tsx. Edit only allowed source/public/root app files, and avoid implementation jargon in user-facing copy. Finish as soon as source edits are complete; do not wait for local validation. Do not finish with no file changes.}"
 else
-  prompt="${CODEX_REAL_PROMPT:-You are running the atoms-cp real canary. Make one small, safe improvement inside $project_dir. Only edit allowed source files, preserve data-ai-id attributes, keep ai-manifest.json valid, and avoid implementation jargon in user-facing copy. Do not run package installation, build, typecheck, test, dev server, or preview commands. Do not create node_modules, dist, lockfiles, caches, or hidden configuration files. Finish as soon as source edits are complete. Do not finish with no file changes.}"
+  prompt="${CODEX_REAL_PROMPT:-You are running the atoms-cp real canary. Make one small, safe improvement inside $project_dir. Only edit allowed source files, preserve data-ai-id attributes, keep ai-manifest.json valid, and make every manifest entry file point to an actual source file you edited. For Taro mini programs, manifest file values must use real paths such as src/pages/index/index.tsx, never src/App.tsx. Avoid implementation jargon in user-facing copy. Use only platform-installed libraries already present in the project. Do not edit package.json, lockfiles, tsconfig.json, vite.config.ts, Taro config files, pnpm-workspace.yaml, or any dependency/configuration file. Do not run package installation, build, typecheck, test, dev server, or preview commands. Do not create node_modules, dist, lockfiles, caches, or hidden configuration files. Finish as soon as source edits are complete. Do not finish with no file changes.}"
 fi
 
 if [ "${CODEX_CONTAINER_EXECUTION:-}" = "1" ]; then

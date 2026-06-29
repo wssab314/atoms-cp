@@ -45,18 +45,30 @@ export function createInitialCodexTaskPlan(input: CreateInitialCodexTaskPlanInpu
   const pageRoutes = taskAppSpec.pages.map((page) => page.route).join(', ');
   const dataModelNames = taskAppSpec.dataModels.map((model) => model.name).join(', ') || 'none';
   const integrationNames = taskAppSpec.integrations.join(', ') || 'none';
-  const allowedPaths = [
-    'src/**',
-    'public/**',
-    'index.html',
-    'package.json',
-    'tsconfig.json',
-    'vite.config.ts',
-    'ai-manifest.json'
-  ];
+  const isMiniProgram = input.project.target === 'mini_program';
+  const allowedPaths = isMiniProgram
+    ? [
+        'src/**',
+        'ai-manifest.json'
+      ]
+    : [
+        'src/**',
+        'public/**',
+        'index.html',
+        'ai-manifest.json'
+      ];
   const forbiddenPaths = [
     '.env',
     '.env.*',
+    'package.json',
+    'pnpm-lock.yaml',
+    'package-lock.json',
+    'yarn.lock',
+    'bun.lock',
+    'bun.lockb',
+    'pnpm-workspace.yaml',
+    'tsconfig.json',
+    'vite.config.ts',
     'node_modules/**',
     'dist/**',
     '../**',
@@ -64,7 +76,7 @@ export function createInitialCodexTaskPlan(input: CreateInitialCodexTaskPlanInpu
     'packages/**',
     'infra/**'
   ];
-  const validationCommands = ['pnpm typecheck', 'pnpm build'];
+  const validationCommands = ['platform preview build', 'ai-manifest validation'];
 
   return {
     taskType: 'initial_generate',
@@ -91,7 +103,10 @@ export function createInitialCodexTaskPlan(input: CreateInitialCodexTaskPlanInpu
       forbiddenPaths,
       dependencyPolicy: 'forbid_new_dependencies',
       validationCommands,
-      expectedOutputs: ['Controlled React/Vite app files', 'ai-manifest.json', 'Versioned workspace files']
+      platform: input.project.target,
+      expectedOutputs: isMiniProgram
+        ? ['Controlled Taro mini program files', 'ai-manifest.json', 'Versioned workspace files']
+        : ['Controlled React/Vite app files', 'ai-manifest.json', 'Versioned workspace files']
     },
     allowedPaths,
     forbiddenPaths,

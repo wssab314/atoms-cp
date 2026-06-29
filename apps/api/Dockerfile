@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV CI=true
 RUN corepack enable
@@ -10,6 +10,8 @@ COPY apps/builder-worker/package.json apps/builder-worker/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/codegen/package.json packages/codegen/package.json
+COPY packages/generated-app-template/package.json packages/generated-app-template/package.json
+COPY packages/generated-taro-template/package.json packages/generated-taro-template/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build

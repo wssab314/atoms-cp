@@ -77,6 +77,29 @@ pnpm docker:build:app
 pnpm docker:save:app
 ```
 
+### Fast Preview Build
+
+预览构建默认使用 `PREVIEW_BUILD_MODE=fast`。镜像内预装两套标准模板：
+
+- Web/H5：`packages/generated-app-template`，运行时路径 `PREVIEW_TEMPLATE_ROOT=/app/packages/generated-app-template`
+- 微信小程序：`packages/generated-taro-template`，运行时路径 `TARO_PREVIEW_TEMPLATE_ROOT=/app/packages/generated-taro-template`
+
+builder-worker 会按项目 `target` 选择模板，复用模板内的 `node_modules` 与构建配置，不在用户项目 workspace 中执行依赖安装，也不跑完整 TypeScript strict gate。
+
+Web/H5 用户项目只允许覆盖：
+
+- `src/**`
+- `public/**`
+- `index.html`
+- `ai-manifest.json`
+
+微信小程序用户项目只允许覆盖：
+
+- `src/**`
+- `ai-manifest.json`
+
+Web/H5 平台预置可导入库为：`react`、`react-dom`、`react-router-dom`、`lucide-react`、`recharts`、`@tanstack/react-table`、`react-hook-form`、`zod`、`clsx`、`date-fns`、`framer-motion`。微信小程序预置可导入库为：`react`、`react-dom`、`@tarojs/taro`、`@tarojs/components`、`@tarojs/react`。生成结果如修改 `package.json`、lockfile、`node_modules`、`dist` 或导入非白名单包，预览构建会直接失败并进入用户安全错误提示。发布构建仍应使用 strict gate；微信小程序第一阶段支持 H5 预览与源码下载，不支持直接上传微信平台。
+
 服务器 `.env.production` 只需要配置：
 
 ```bash
@@ -146,10 +169,10 @@ docker compose \
 
 默认 staging canary 使用 `/app/scripts/codex-doubao21-exec.sh`：
 
-- 启动时在容器内生成 `CODEX_HOME/doubao21.config.toml`。
-- Codex provider 使用 `wire_api = "responses"` 与 `base_url = "https://ark.cn-beijing.volces.com/api/v3"`。
-- 火山方舟 API Key 只从 `/run/secrets/codex_api_key` 读取，并以子进程 env 形式传给 Codex CLI；不会进入 compose env、命令参数、Admin response 或 trace。
-- wrapper 会设置 `shell_environment_policy.inherit=none`，避免 Codex 执行 workspace 命令时继承 provider token。
+- 默认 `CODEX_DOUBAO_EXECUTOR=chat_codegen`，直接使用火山方舟 `/chat/completions` 生成允许文件的完整内容，再交给平台做 allowlist、manifest、import 与 build 校验。
+- 如需验证兼容 Responses 的 provider，可显式设置 `CODEX_DOUBAO_EXECUTOR=codex_cli`；此时 wrapper 会在容器内生成 `CODEX_HOME/doubao21.config.toml`，Codex provider 使用 `wire_api = "responses"`。
+- 火山方舟 API Key 只从 `/run/secrets/codex_api_key` 读取；不会进入 compose env、命令参数、Admin response 或 trace。
+- Codex CLI 路径会设置 `shell_environment_policy.inherit=none`，避免执行 workspace 命令时继承 provider token。
 - `@openai/codex@0.138.0` 已在 codex-worker 镜像中预装，国内服务器只拉取镜像，不在运行时下载 CLI。
 
 安全要求：

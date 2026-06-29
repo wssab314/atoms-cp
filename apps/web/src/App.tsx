@@ -887,7 +887,7 @@ function DashboardPage() {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
 
-  const [platform, setPlatform] = useState('Web 网页');
+  const [platform, setPlatform] = useState<'Web 网页' | 'H5 移动端' | '微信小程序'>('Web 网页');
   const [platformOpen, setPlatformOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -918,7 +918,7 @@ function DashboardPage() {
       const pPayload: api.CreateProjectPayload = {
         name: generatedName || '新应用草稿',
         prompt: trimmedPrompt,
-        target: platform === 'H5 移动端' ? 'mini_program' : 'web'
+        target: platform === '微信小程序' ? 'mini_program' : 'web'
       };
 
       const newProj = await api.createProject(pPayload);
@@ -979,6 +979,7 @@ function DashboardPage() {
                 <div className="chip-dropdown">
                   <button className={`chip-dropdown-item ${platform === 'Web 网页' ? 'selected' : ''}`} onClick={() => { setPlatform('Web 网页'); setPlatformOpen(false); }}>Web 网页</button>
                   <button className={`chip-dropdown-item ${platform === 'H5 移动端' ? 'selected' : ''}`} onClick={() => { setPlatform('H5 移动端'); setPlatformOpen(false); }}>H5 移动端</button>
+                  <button className={`chip-dropdown-item ${platform === '微信小程序' ? 'selected' : ''}`} onClick={() => { setPlatform('微信小程序'); setPlatformOpen(false); }}>微信小程序</button>
                 </div>
               )}
             </div>
@@ -1569,6 +1570,7 @@ function ProjectInspectorPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const isMiniProgram = project?.target === 'mini_program';
 
   useEffect(() => {
     async function loadData() {
@@ -1618,6 +1620,10 @@ function ProjectInspectorPage() {
   }, []);
 
   const handleIframeLoad = () => {
+    if (isMiniProgram) {
+      return;
+    }
+
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'INSPECTOR_ENABLE' }, getIframeTargetOrigin(iframeRef.current));
     }
@@ -1631,7 +1637,11 @@ function ProjectInspectorPage() {
   };
 
   const activeSnapshot = getLatestReadySnapshot(snapshots);
-  const previewUrl = activeSnapshot ? (activeSnapshot.url.includes('?') ? `${activeSnapshot.url}&inspector=1` : `${activeSnapshot.url}?inspector=1`) : null;
+  const previewUrl = activeSnapshot
+    ? isMiniProgram
+      ? activeSnapshot.url
+      : (activeSnapshot.url.includes('?') ? `${activeSnapshot.url}&inspector=1` : `${activeSnapshot.url}?inspector=1`)
+    : null;
 
   const manifestEntries = manifest?.manifest?.entries ? Object.values(manifest.manifest.entries) : [];
   const entriesList = manifestEntries;
@@ -1698,6 +1708,17 @@ function ProjectInspectorPage() {
           </h2>
         </div>
         <div className="panel-content">
+          {isMiniProgram && (
+            <div className="ai-summary-card" style={{ backgroundColor: 'var(--color-warning-soft)', border: '1px solid #fde68a' }}>
+              <h3 className="ai-summary-title" style={{ color: '#b45309' }}>
+                <Info className="w-4 h-4" />
+                <span>小程序源码已生成</span>
+              </h3>
+              <p className="ai-summary-text" style={{ fontSize: '12.5px', color: '#92400e' }}>
+                微信小程序项目暂不支持页面点选微调。请回到工作台，在左侧对话框描述修改需求；也可以下载源码后使用微信开发者工具继续调试。
+              </p>
+            </div>
+          )}
           <div className="ai-summary-card" style={{ backgroundColor: 'var(--color-bg-soft)', border: '1px solid var(--color-border)' }}>
             <h3 className="ai-summary-title" style={{ color: 'var(--color-text-secondary)' }}>
               <Info className="w-4 h-4" />
@@ -1716,7 +1737,9 @@ function ProjectInspectorPage() {
                   <button
                     key={el.aiId}
                     className={`suggestion-item ${selectedElementId === el.aiId ? 'active' : ''}`}
+                    disabled={isMiniProgram}
                     onClick={() => {
+                      if (isMiniProgram) return;
                       setSelectedElementId(el.aiId);
                       setDirectText('');
                       setAiInstruction('');
@@ -1759,7 +1782,9 @@ function ProjectInspectorPage() {
           <div className="viewer-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text-primary)' }}>应用查看器</span>
-              <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', height: '20px', display: 'inline-flex', alignItems: 'center' }}>页面交互微调模式</span>
+              <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', height: '20px', display: 'inline-flex', alignItems: 'center' }}>
+                {isMiniProgram ? '小程序 H5 预览' : '页面交互微调模式'}
+              </span>
             </div>
             <div className="viewer-address-bar" style={{ flex: 'none', width: '220px' }}>
               {previewUrl || '等待预览地址'}
@@ -1820,7 +1845,11 @@ function ProjectInspectorPage() {
           )}
 
           {selectedElementId ? (
-            currentEntry ? (
+            isMiniProgram ? (
+              <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', padding: '6px 0' }}>
+                小程序项目请使用左侧 Agent 对话继续修改，本页仅展示 H5 预览结果。
+              </div>
+            ) : currentEntry ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {canDirectEdit ? (
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1867,7 +1896,7 @@ function ProjectInspectorPage() {
             )
           ) : (
             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', padding: '6px 0' }}>
-              请在上方预览区域中直接点选元素，以开始进行局部修改。
+              {isMiniProgram ? '小程序项目请使用工作台左侧 Agent 对话继续修改。' : '请在上方预览区域中直接点选元素，以开始进行局部修改。'}
             </div>
           )}
         </div>
@@ -2250,8 +2279,10 @@ function ProjectPublishPage() {
   const activeReadySnapshot = snapshots.find(s => s.active && s.status === 'ready');
   const hasReadySnapshot = publishState?.activePreviewSnapshotId ? true : Boolean(activeReadySnapshot);
   const isLatestBuildFailed = snapshots.some(s => s.status === 'failed');
+  const isMiniProgram = project?.target === 'mini_program';
 
   const handleStartPublish = () => {
+    if (isMiniProgram) return;
     if (publishState && !publishState.canPublish) return;
     if (isLatestBuildFailed) return;
     setDeployError('当前账号还没有可用发布通道。请先保存已部署访问地址，或完成代码托管配置后再发布。');
@@ -2511,6 +2542,13 @@ function ProjectPublishPage() {
             </div>
           )}
 
+          {isMiniProgram && (
+            <div style={{ backgroundColor: 'var(--color-warning-soft)', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', color: '#b45309', fontSize: '12.5px', fontWeight: 600 }}>
+              <AlertTriangle className="w-4 h-4" style={{ flexShrink: 0 }} />
+              <span>微信小程序暂不支持一键发布，请下载源码并使用微信开发者工具发布。</span>
+            </div>
+          )}
+
           {publishState && publishState.blockingReasons && publishState.blockingReasons.length > 0 && (
             <div style={{ backgroundColor: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#d97706', fontSize: '12.5px', fontWeight: 600, marginBottom: '4px' }}>
@@ -2529,7 +2567,7 @@ function ProjectPublishPage() {
             className="btn btn-primary btn-lg"
             onClick={handleStartPublish}
             style={{ whiteSpace: 'nowrap', minWidth: 'fit-content' }}
-            disabled={!hasReadySnapshot || isLatestBuildFailed || (publishState !== null && !publishState.canPublish)}
+            disabled={isMiniProgram || !hasReadySnapshot || isLatestBuildFailed || (publishState !== null && !publishState.canPublish)}
           >
             <Globe className="w-5 h-5" />
             <span>确认一键发布</span>

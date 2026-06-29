@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { appSpecSchema } from './appSpec.js';
 import { designProfileSchema } from './design.js';
+import { projectTargetSchema } from './project.js';
 
 function isSafeArtifactPath(value: string): boolean {
   return value.startsWith('/') && !value.includes('\0') && !value.includes('/../') && !value.endsWith('/..');
@@ -56,6 +57,7 @@ export type CodexTaskTargetChange = z.infer<typeof codexTaskTargetChangeSchema>;
 
 export const codexTaskSpecSchema = z.object({
   goal: z.string().min(1),
+  platform: projectTargetSchema.default('web'),
   appSpec: appSpecSchema,
   designProfile: designProfileSchema,
   targetChange: codexTaskTargetChangeSchema,

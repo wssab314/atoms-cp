@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -20,7 +20,7 @@ interface MutableBuildJob extends Row {
   created_at: string;
 }
 
-function createWorkerDb(): Queryable & { queries: Array<{ text: string; values: readonly unknown[] }> } {
+function createWorkerDb(options: { projectTarget?: 'web' | 'mini_program' } = {}): Queryable & { queries: Array<{ text: string; values: readonly unknown[] }> } {
   const queries: Array<{ text: string; values: readonly unknown[] }> = [];
   const previewSnapshots: Row[] = [];
   const traceEvents: Row[] = [];
@@ -66,6 +66,16 @@ function createWorkerDb(): Queryable & { queries: Array<{ text: string; values: 
 
       if (text.includes('from project_versions') && text.includes('workspace_path')) {
         return { rows: [] };
+      }
+
+      if (text.includes('from projects') && text.includes('target')) {
+        return {
+          rows: [
+            {
+              target: options.projectTarget ?? 'web'
+            } as unknown as T
+          ]
+        };
       }
 
       if (text.includes('update preview_snapshots set active = false')) {
@@ -165,6 +175,7 @@ describe('processNextBuildJob', () => {
         previewAccessSecret: 'queue-preview-secret',
         previewRoot: join(root, 'previews'),
         workspaceRoot: join(root, 'workspaces'),
+        previewBuildMode: 'strict',
         runCommand: async ({ cwd }) => {
           await writeFile(join(cwd, 'dist', 'index.html'), '<main data-ai-id="home.hero.title">Preview</main>');
           return {
@@ -206,6 +217,7 @@ describe('processNextBuildJob', () => {
         previewAccessSecret: 'queue-preview-secret',
         previewRoot: join(root, 'previews'),
         workspaceRoot: join(root, 'workspaces'),
+        previewBuildMode: 'strict',
         runCommand: async () => ({
           exitCode: 1,
           stdout: '',
@@ -222,4 +234,50 @@ describe('processNextBuildJob', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('passes the mini program platform into preview builds for mini program projects', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'atoms-build-queue-mini-test-'));
+    const db = createWorkerDb({ projectTarget: 'mini_program' });
+    const taroTemplateRoot = await createMinimalTaroTemplate(root);
+    let receivedCwd = '';
+
+    try {
+      const result = await processNextBuildJob(db, {
+        previewBaseUrl: 'http://localhost:4000/preview',
+        previewAccessSecret: 'queue-preview-secret',
+        previewRoot: join(root, 'previews'),
+        workspaceRoot: join(root, 'workspaces'),
+        previewBuildMode: 'fast',
+        taroTemplateRoot,
+        runCommand: async ({ cwd }) => {
+          receivedCwd = cwd;
+          await writeFile(join(cwd, 'dist', 'index.html'), '<main>mini preview</main>');
+          return {
+            exitCode: 0,
+            stdout: 'mini build ok',
+            stderr: ''
+          };
+        }
+      });
+
+      expect(result?.status).toBe('success');
+      expect(receivedCwd).toContain(join(root, 'workspaces'));
+      expect(db.queries.some((query) => query.text.includes('from projects') && query.text.includes('target'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
+
+async function createMinimalTaroTemplate(root: string): Promise<string> {
+  const templateRoot = join(root, 'taro-template');
+  await mkdir(join(templateRoot, 'node_modules', '.bin'), { recursive: true });
+  await mkdir(join(templateRoot, 'src', 'pages', 'index'), { recursive: true });
+  await writeFile(join(templateRoot, 'package.json'), '{"dependencies":{"@tarojs/taro":"4.2.0","@tarojs/components":"4.2.0","react":"^18.2.0"}}', 'utf8');
+  await writeFile(join(templateRoot, 'src', 'index.html'), '<div id="app"></div>', 'utf8');
+  await writeFile(join(templateRoot, 'src', 'pages', 'index', 'index.tsx'), 'export default function Index() { return null; }', 'utf8');
+  await writeFile(join(templateRoot, 'ai-manifest.json'), '{"version":1,"entries":[]}', 'utf8');
+  await writeFile(join(templateRoot, 'node_modules', '.bin', 'taro'), '#!/bin/sh\nexit 0\n', 'utf8');
+  await chmod(join(templateRoot, 'node_modules', '.bin', 'taro'), 0o755);
+  return templateRoot;
+}

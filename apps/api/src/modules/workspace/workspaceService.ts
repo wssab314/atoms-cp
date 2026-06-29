@@ -113,11 +113,11 @@ function manifestForTaskSpec(taskSpec: CodexTaskSpec): AiManifest {
 
   for (const page of taskSpec.appSpec.pages) {
     for (const section of page.sections) {
-        const aiId = `${page.id}.${section.id}.title`;
+      const aiId = `${page.id}.${section.id}.title`;
       entries[aiId] = {
         aiId,
-        file: 'src/App.tsx',
-        component: 'GeneratedApp',
+        file: taskSpec.platform === 'mini_program' ? 'src/pages/index/index.tsx' : 'src/App.tsx',
+        component: taskSpec.platform === 'mini_program' ? 'Index' : 'GeneratedApp',
         elementType: 'heading',
         editable: ['text'],
         requirementId: `${page.id}:${section.id}`
@@ -487,29 +487,57 @@ document.addEventListener(
 `;
 }
 
-function templateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
+function reactViteTemplateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
   const manifest = manifestForTaskSpec(taskSpec);
+  const allowedLibraries = [
+    'react',
+    'react-dom',
+    'react-router-dom',
+    'lucide-react',
+    'recharts',
+    '@tanstack/react-table',
+    'react-hook-form',
+    'zod',
+    'clsx',
+    'date-fns',
+    'framer-motion'
+  ];
 
   return [
     {
       path: 'package.json',
       content: `${JSON.stringify({
+        type: 'module',
         scripts: {
           dev: 'vite',
           build: 'vite build',
-          preview: 'vite preview',
+          'build:preview': 'vite build --mode preview --minify=false --sourcemap=false',
+          'build:strict': 'tsc --noEmit && vite build',
+          preview: 'vite preview --host 0.0.0.0',
           typecheck: 'tsc --noEmit'
         },
         dependencies: {
-          '@vitejs/plugin-react': 'latest',
-          vite: 'latest',
-          typescript: 'latest',
-          react: 'latest',
-          'react-dom': 'latest'
+          '@tanstack/react-table': '^8.20.6',
+          clsx: '^2.1.1',
+          'date-fns': '^4.1.0',
+          'framer-motion': '^12.0.0',
+          'lucide-react': '^0.468.0',
+          react: '^19.0.0',
+          'react-dom': '^19.0.0',
+          'react-hook-form': '^7.54.2',
+          'react-router-dom': '^7.1.1',
+          recharts: '^2.15.0',
+          zod: '^3.24.1'
         },
-        devDependencies: {}
+        devDependencies: {
+          '@types/react': '^19.0.0',
+          '@types/react-dom': '^19.0.0',
+          '@vitejs/plugin-react': '^4.3.4',
+          typescript: '^5.7.2',
+          vite: '^5.4.21'
+        }
       }, null, 2)}\n`,
-      purpose: 'Controlled React/Vite package manifest.'
+      purpose: 'Platform dependency manifest. Preview builds use the preinstalled template dependencies.'
     },
     {
       path: 'index.html',
@@ -534,9 +562,10 @@ function templateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
           resolveJsonModule: true,
           isolatedModules: true,
           noEmit: true,
-          jsx: 'react-jsx'
+          jsx: 'react-jsx',
+          types: ['vite/client', 'node']
         },
-        include: ['src'],
+        include: ['src', 'vite.config.ts'],
         references: []
       }, null, 2)}\n`,
       purpose: 'TypeScript project configuration.'
@@ -547,6 +576,8 @@ function templateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  base: './',
+  cacheDir: process.env.VITE_CACHE_DIR ?? 'node_modules/.vite',
   plugins: [react()]
 });
 `,
@@ -601,12 +632,400 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       content: `# Codex Workspace Rules
 
 - Work only inside allowed paths from the CodexTask.
-- Do not write secrets, .env files, build output, node_modules, or git metadata.
+- Do not edit package.json, lockfiles, tsconfig.json, vite.config.ts, build output, node_modules, or git metadata.
+- Do not install dependencies. The platform already provides these allowed libraries: ${allowedLibraries.join(', ')}.
+- Only import the allowed libraries above, plus relative files you create under src/.
 - Keep user-facing copy product-focused and avoid implementation jargon.
 `,
       purpose: 'Workspace guardrails for future Codex worker adapters.'
     }
   ];
+}
+
+function createTaroPageTsx(taskSpec: CodexTaskSpec): string {
+  const appName = taskSpec.appSpec.appName;
+  const appGoal = taskSpec.appSpec.appGoal;
+  const targetUser = taskSpec.appSpec.targetUser;
+  const primaryPage = taskSpec.appSpec.pages[0];
+  const sections = taskSpec.appSpec.pages.flatMap((page) =>
+    page.sections.map((section) => ({
+      aiId: `${page.id}.${section.id}.title`,
+      kind: section.kind,
+      title: section.title,
+      content: section.content
+    }))
+  );
+
+  return `import { View, Text, Button, ScrollView } from '@tarojs/components';
+import './index.css';
+
+const appName = ${JSON.stringify(appName)};
+const appGoal = ${JSON.stringify(appGoal)};
+const targetUser = ${JSON.stringify(targetUser)};
+const primaryPageName = ${JSON.stringify(primaryPage?.name ?? '首页')};
+const sections = ${JSON.stringify(sections, null, 2)} as const;
+
+export default function Index() {
+  return (
+    <ScrollView className="page" scrollY>
+      <View className="hero" data-ai-id="home.hero">
+        <Text className="eyebrow">微信小程序</Text>
+        <Text className="title" data-ai-id="home.hero.title">{appName}</Text>
+        <Text className="lede">{appGoal}</Text>
+        <View className="actions">
+          <Button className="primary-action">继续修改</Button>
+          <Button className="secondary-action">{primaryPageName}</Button>
+        </View>
+      </View>
+
+      <View className="card">
+        <Text className="card-label">目标用户</Text>
+        <Text className="card-title">{targetUser}</Text>
+      </View>
+
+      {sections.map((section) => (
+        <View className="card" key={section.aiId}>
+          <Text className="card-label">{section.kind}</Text>
+          <Text className="card-title" data-ai-id={section.aiId}>{section.title}</Text>
+          <Text className="card-copy">{section.content}</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+`;
+}
+
+function createTaroPageCss(taskSpec: CodexTaskSpec): string {
+  const { colors, radius, shadow, density } = taskSpec.designProfile.designTokens;
+  const radiusPx = {
+    none: '0px',
+    sm: '12px',
+    md: '20px',
+    lg: '28px',
+    xl: '36px'
+  }[radius];
+  const gap = {
+    compact: '20px',
+    balanced: '28px',
+    airy: '36px'
+  }[density];
+  const shadowValue = shadow === 'none' ? 'none' : '0 20px 60px rgba(23, 26, 31, 0.10)';
+
+  return `page {
+  min-height: 100%;
+  background: ${colors.background};
+  color: ${colors.foreground};
+}
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 40px 28px 64px;
+}
+
+.hero,
+.card {
+  box-sizing: border-box;
+  border: 1px solid ${colors.border};
+  border-radius: ${radiusPx};
+  background: #ffffff;
+  box-shadow: ${shadowValue};
+}
+
+.hero {
+  padding: 40px 32px;
+  margin-bottom: ${gap};
+}
+
+.eyebrow,
+.card-label {
+  display: block;
+  color: ${colors.primary};
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.title {
+  display: block;
+  margin-top: 18px;
+  color: ${colors.foreground};
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.lede,
+.card-copy {
+  display: block;
+  margin-top: 18px;
+  color: ${colors.muted};
+  font-size: 28px;
+  line-height: 1.7;
+}
+
+.actions {
+  display: flex;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.primary-action,
+.secondary-action {
+  margin: 0;
+  border-radius: 999px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.primary-action {
+  color: #ffffff;
+  background: ${colors.primary};
+}
+
+.secondary-action {
+  color: ${colors.primary};
+  background: ${colors.secondary};
+}
+
+.card {
+  padding: 28px;
+  margin-top: ${gap};
+}
+
+.card-title {
+  display: block;
+  margin-top: 12px;
+  color: ${colors.foreground};
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+`;
+}
+
+function taroTemplateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
+  const manifest = manifestForTaskSpec(taskSpec);
+
+  return [
+    {
+      path: 'package.json',
+      content: `${JSON.stringify({
+        scripts: {
+          dev: 'taro build --type h5 --watch',
+          'build:h5': 'taro build --type h5',
+          'build:weapp': 'taro build --type weapp',
+          typecheck: 'tsc --noEmit'
+        },
+        dependencies: {
+          '@tarojs/components': '4.2.0',
+          '@tarojs/helper': '4.2.0',
+          '@tarojs/plugin-framework-react': '4.2.0',
+          '@tarojs/plugin-platform-h5': '4.2.0',
+          '@tarojs/plugin-platform-weapp': '4.2.0',
+          '@tarojs/react': '4.2.0',
+          '@tarojs/runtime': '4.2.0',
+          '@tarojs/shared': '4.2.0',
+          '@tarojs/taro': '4.2.0',
+          '@tarojs/webpack5-runner': '4.2.0',
+          'babel-preset-taro': '4.2.0',
+          react: '^18.2.0',
+          'react-dom': '^18.2.0'
+        },
+        devDependencies: {
+          '@babel/core': '^7.28.0',
+          '@babel/plugin-transform-typescript': '^7.29.7',
+          '@babel/preset-react': '^7.29.7',
+          '@tarojs/cli': '4.2.0',
+          '@types/react': '^18.2.0',
+          '@types/react-dom': '^18.2.0',
+          postcss: '^8.4.49',
+          typescript: '^5.7.2',
+          webpack: '5.91.0'
+        },
+        private: true,
+        name: 'atoms-mini-program',
+        version: '0.0.0'
+      }, null, 2)}\n`,
+      purpose: 'Platform dependency manifest for a Taro mini program.'
+    },
+    {
+      path: 'config/index.ts',
+      content: `import { defineConfig } from '@tarojs/cli';
+
+export default defineConfig({
+  projectName: 'atoms-mini-program',
+  date: '2026-06-29',
+  designWidth: 750,
+  deviceRatio: {
+    640: 2.34 / 2,
+    750: 1,
+    828: 1.81 / 2
+  },
+  sourceRoot: 'src',
+  outputRoot: 'dist',
+  framework: 'react',
+  compiler: 'webpack5',
+  plugins: ['@tarojs/plugin-platform-weapp', '@tarojs/plugin-platform-h5'],
+  mini: {
+    postcss: {
+      pxtransform: {
+        enable: true,
+        config: {}
+      }
+    }
+  },
+  h5: {
+    publicPath: './',
+    staticDirectory: 'static',
+    router: {
+      mode: 'hash'
+    }
+  }
+});
+`,
+      purpose: 'Taro build configuration.'
+    },
+    {
+      path: 'config/dev.ts',
+      content: `export default {};\n`,
+      purpose: 'Taro development build overrides.'
+    },
+    {
+      path: 'config/prod.ts',
+      content: `export default {};\n`,
+      purpose: 'Taro production build overrides.'
+    },
+    {
+      path: 'project.config.json',
+      content: `${JSON.stringify({
+        miniprogramRoot: 'dist/weapp/',
+        projectname: 'atoms-mini-program',
+        description: 'Generated by Atoms CP',
+        appid: 'touristappid',
+        setting: {
+          urlCheck: true,
+          es6: true,
+          postcss: true,
+          minified: true
+        },
+        compileType: 'miniprogram'
+      }, null, 2)}\n`,
+      purpose: 'WeChat Developer Tools project configuration.'
+    },
+    {
+      path: 'babel.config.js',
+      content: `module.exports = {
+  presets: [
+    ['taro', {
+      framework: 'react',
+      ts: true
+    }]
+  ]
+};
+`,
+      purpose: 'Taro Babel configuration.'
+    },
+    {
+      path: 'tsconfig.json',
+      content: `${JSON.stringify({
+        compilerOptions: {
+          target: 'ES2020',
+          module: 'ESNext',
+          moduleResolution: 'Node',
+          jsx: 'react-jsx',
+          strict: true,
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+          skipLibCheck: true,
+          resolveJsonModule: true,
+          noEmit: true,
+          types: ['node']
+        },
+        include: ['src', 'config']
+      }, null, 2)}\n`,
+      purpose: 'TypeScript configuration for the Taro app.'
+    },
+    {
+      path: 'src/index.html',
+      content: `<div id="app"></div>\n`,
+      purpose: 'Taro H5 HTML entry.'
+    },
+    {
+      path: 'src/app.config.ts',
+      content: `export default {
+  pages: ['pages/index/index'],
+  window: {
+    navigationBarTitleText: ${JSON.stringify(taskSpec.appSpec.appName)},
+    navigationBarBackgroundColor: '#ffffff',
+    navigationBarTextStyle: 'black',
+    backgroundColor: ${JSON.stringify(taskSpec.designProfile.designTokens.colors.background)}
+  }
+};
+`,
+      purpose: 'Taro global mini program configuration.'
+    },
+    {
+      path: 'src/app.tsx',
+      content: `import type { PropsWithChildren } from 'react';
+import './app.css';
+
+export default function App({ children }: PropsWithChildren) {
+  return children;
+}
+`,
+      purpose: 'Taro React app entry.'
+    },
+    {
+      path: 'src/app.css',
+      content: `page {
+  min-height: 100%;
+}
+`,
+      purpose: 'Taro global stylesheet.'
+    },
+    {
+      path: 'src/pages/index/index.config.ts',
+      content: `export default {
+  navigationBarTitleText: ${JSON.stringify(taskSpec.appSpec.appName)}
+};
+`,
+      purpose: 'Taro index page configuration.'
+    },
+    {
+      path: 'src/pages/index/index.tsx',
+      content: createTaroPageTsx(taskSpec),
+      purpose: 'Generated Taro mini program page.'
+    },
+    {
+      path: 'src/pages/index/index.css',
+      content: createTaroPageCss(taskSpec),
+      purpose: 'Generated Taro mini program page styles.'
+    },
+    {
+      path: 'ai-manifest.json',
+      content: `${JSON.stringify(manifest, null, 2)}\n`,
+      purpose: 'AI editable element manifest.'
+    },
+    {
+      path: 'codex-rules.md',
+      content: `# Taro Workspace Rules
+
+- This is a Taro React WeChat Mini Program project.
+- Edit only allowed source files and ai-manifest.json.
+- Use Taro components from @tarojs/components and APIs from @tarojs/taro.
+- Do not use browser-only DOM APIs, package installation, lockfiles, dist, node_modules, or hidden config files.
+- The platform builds an H5 preview and packages mini program source for download.
+`,
+      purpose: 'Workspace guardrails for Taro generation.'
+    }
+  ];
+}
+
+function templateFiles(taskSpec: CodexTaskSpec): GeneratedFile[] {
+  return taskSpec.platform === 'mini_program'
+    ? taroTemplateFiles(taskSpec)
+    : reactViteTemplateFiles(taskSpec);
 }
 
 export async function createWorkspaceFromTemplate(input: {

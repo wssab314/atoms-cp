@@ -20,6 +20,7 @@ async function makeRoot() {
 
 const taskSpec: CodexTaskSpec = {
   goal: 'Create a quiet dashboard.',
+  platform: 'web',
   appSpec: {
     appName: '销售数据看板',
     appGoal: '帮助运营团队查看销售趋势',
@@ -90,6 +91,14 @@ const taskSpec: CodexTaskSpec = {
   expectedOutputs: ['Vite app files', 'ai-manifest.json']
 };
 
+const miniProgramTaskSpec: CodexTaskSpec = {
+  ...taskSpec,
+  goal: 'Create a quiet mini program.',
+  platform: 'mini_program',
+  allowedPaths: ['src/**', 'ai-manifest.json'],
+  expectedOutputs: ['Taro mini program files', 'ai-manifest.json']
+};
+
 describe('workspaceService', () => {
   afterEach(async () => {
     await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
@@ -127,6 +136,40 @@ describe('workspaceService', () => {
       expect.arrayContaining(['index.html', 'src/App.tsx', 'src/main.tsx', 'src/preview-inspector.ts', 'ai-manifest.json'])
     );
     expect(files.every((file) => file.contentHash.length === 64)).toBe(true);
+  });
+
+  it('creates a controlled Taro mini program workspace from a structured task spec', async () => {
+    const root = await makeRoot();
+    const workspacePath = join(root, 'mini-project');
+    await createWorkspaceFromTemplate({
+      workspacePath,
+      taskSpec: miniProgramTaskSpec
+    });
+
+    const packageJson = await readFile(join(workspacePath, 'package.json'), 'utf8');
+    const appConfig = await readFile(join(workspacePath, 'src', 'app.config.ts'), 'utf8');
+    const buildConfig = await readFile(join(workspacePath, 'config', 'index.ts'), 'utf8');
+    const page = await readFile(join(workspacePath, 'src', 'pages', 'index', 'index.tsx'), 'utf8');
+    const manifest = await readFile(join(workspacePath, 'ai-manifest.json'), 'utf8');
+    const files = await collectWorkspaceFiles(workspacePath);
+
+    expect(packageJson).toContain('@tarojs/taro');
+    expect(appConfig).toContain('pages/index/index');
+    expect(buildConfig).toContain("mode: 'hash'");
+    expect(page).toContain("from '@tarojs/components'");
+    expect(page).toContain('data-ai-id="home.hero.title"');
+    expect(manifest).toContain('home.hero.title');
+    expect(JSON.parse(manifest).entries['home.hero.title'].file).toBe('src/pages/index/index.tsx');
+    expect(files.map((file) => file.path)).toEqual(
+      expect.arrayContaining([
+        'config/index.ts',
+        'project.config.json',
+        'src/app.config.ts',
+        'src/pages/index/index.tsx',
+        'src/pages/index/index.css',
+        'ai-manifest.json'
+      ])
+    );
   });
 
   it('enforces workspace path allowlist, denylist, and dependency policy', () => {

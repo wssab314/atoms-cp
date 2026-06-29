@@ -13,6 +13,9 @@ const previewBaseUrl = process.env.PREVIEW_BASE_URL ?? 'http://localhost:4000/pr
 const previewAccessSecret = process.env.PREVIEW_ACCESS_SECRET ?? 'development-preview-access-secret';
 const previewRoot = process.env.PREVIEW_ROOT_DIR ?? '/tmp/atoms-cp-previews';
 const workspaceRoot = process.env.BUILD_WORKSPACE_ROOT ?? '/tmp/atoms-cp-build-workspaces';
+const previewBuildMode = process.env.PREVIEW_BUILD_MODE === 'strict' ? 'strict' : 'fast';
+const previewTemplateRoot = process.env.PREVIEW_TEMPLATE_ROOT ?? '/app/packages/generated-app-template';
+const taroPreviewTemplateRoot = process.env.TARO_PREVIEW_TEMPLATE_ROOT ?? '/app/packages/generated-taro-template';
 const maxConcurrent = Number(process.env.BUILD_MAX_CONCURRENT ?? 1);
 const pool = databaseUrl
   ? new Pool({
@@ -51,7 +54,10 @@ async function emitHeartbeat(): Promise<void> {
           previewBaseUrl,
           previewAccessSecret,
           previewRoot,
-          workspaceRoot
+          workspaceRoot,
+          previewBuildMode,
+          templateRoot: previewTemplateRoot,
+          taroTemplateRoot: taroPreviewTemplateRoot
         });
 
         if (processed) {
@@ -70,7 +76,8 @@ async function emitHeartbeat(): Promise<void> {
       metadata: {
         service: 'atoms-cp-builder-worker',
         activeBuildJobId,
-        maxConcurrent
+        maxConcurrent,
+        previewBuildMode
       }
     });
     console.log(JSON.stringify({

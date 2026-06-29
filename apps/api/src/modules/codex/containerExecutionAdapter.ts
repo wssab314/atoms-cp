@@ -56,6 +56,26 @@ const defaultOutputMaxFiles = 200;
 const defaultOutputMaxBytes = 5 * 1024 * 1024;
 const deniedWorkspaceParts = new Set(['node_modules', 'dist', '.git']);
 const deniedEnvNamePattern = /(SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL|COOKIE|DATABASE_URL|REDIS_URL)/i;
+const webAllowedImports = [
+  'react',
+  'react-dom',
+  'react-router-dom',
+  'lucide-react',
+  'recharts',
+  '@tanstack/react-table',
+  'react-hook-form',
+  'zod',
+  'clsx',
+  'date-fns',
+  'framer-motion'
+];
+const miniProgramAllowedImports = [
+  'react',
+  'react-dom',
+  '@tarojs/taro',
+  '@tarojs/components',
+  '@tarojs/react'
+];
 const progressMarker = 'ATOMS_PROGRESS ';
 const allowedProgressStages = new Set<CodexExecutionProgressEvent['stage']>([
   'coding_app',
@@ -380,6 +400,11 @@ async function writeTaskInstructionFile(input: CodexExecutionInput): Promise<{ p
     taskSpec: taskSpecForExecutor,
     allowedPaths: input.task.allowedPaths,
     forbiddenPaths: input.task.forbiddenPaths,
+    dependencyPolicy: {
+      allowNewDependencies: false,
+      allowedImports: allowedImportsForPlatform(input.task.taskSpec?.platform),
+      note: dependencyPolicyNoteForPlatform(input.task.taskSpec?.platform)
+    },
     platformValidation: {
       handledByAtomsCp: true,
       note: 'Do not run package installation, build, typecheck, test, dev server, or preview commands. The platform validates and builds after this editing step.'
@@ -392,6 +417,18 @@ async function writeTaskInstructionFile(input: CodexExecutionInput): Promise<{ p
       await rm(directory, { recursive: true, force: true });
     }
   };
+}
+
+function allowedImportsForPlatform(platform: unknown): string[] {
+  return platform === 'mini_program' ? miniProgramAllowedImports : webAllowedImports;
+}
+
+function dependencyPolicyNoteForPlatform(platform: unknown): string {
+  if (platform === 'mini_program') {
+    return 'This is a Taro React WeChat Mini Program. Edit only src/** and ai-manifest.json. Use Taro components and APIs. Manifest entry file values must point to real Taro source files such as src/pages/index/index.tsx, not src/App.tsx. Do not edit package.json, lockfiles, config, tsconfig.json, node_modules, or dist.';
+  }
+
+  return 'This is a React/Vite web app. Only edit source, public, index.html, and ai-manifest.json. Do not edit package.json, lockfiles, tsconfig.json, or vite.config.ts.';
 }
 
 function isSafeForwardedEnvName(name: string): boolean {
@@ -415,7 +452,7 @@ function buildCommandEnv(input: {
     CODEX_SECRET_FILE: input.secretFilePath
   };
 
-  for (const name of ['CODEX_DOUBAO_MODEL', 'CODEX_DOUBAO_BASE_URL', 'CODEX_PROFILE_NAME']) {
+  for (const name of ['CODEX_DOUBAO_MODEL', 'CODEX_DOUBAO_BASE_URL', 'CODEX_PROFILE_NAME', 'CODEX_DOUBAO_EXECUTOR']) {
     const value = hostEnv[name];
 
     if (isSafeForwardedEnvName(name) && typeof value === 'string') {

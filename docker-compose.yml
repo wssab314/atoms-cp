@@ -116,7 +116,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: apps/builder-worker/Dockerfile
+      dockerfile: apps/api/Dockerfile
     init: true
     env_file:
       - path: .env
@@ -129,6 +129,9 @@ services:
       PREVIEW_ACCESS_SECRET: ${PREVIEW_ACCESS_SECRET:-development-preview-access-secret}
       PREVIEW_ROOT_DIR: ${PREVIEW_ROOT_DIR:-/tmp/atoms-cp-previews}
       BUILD_WORKSPACE_ROOT: ${BUILD_WORKSPACE_ROOT:-/tmp/atoms-cp-build-workspaces}
+      PREVIEW_BUILD_MODE: ${PREVIEW_BUILD_MODE:-fast}
+      PREVIEW_TEMPLATE_ROOT: ${PREVIEW_TEMPLATE_ROOT:-/app/packages/generated-app-template}
+      TARO_PREVIEW_TEMPLATE_ROOT: ${TARO_PREVIEW_TEMPLATE_ROOT:-/app/packages/generated-taro-template}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-3000}
     volumes:
       - preview-data:/tmp/atoms-cp-previews

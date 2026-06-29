@@ -18,6 +18,7 @@ async function makeRoot() {
 function createTaskSpec(): CodexTaskSpec {
   return {
     goal: 'Create a quiet dashboard.',
+    platform: 'web',
     appSpec: {
       appName: '销售数据看板',
       appGoal: '帮助运营团队查看销售趋势',
@@ -344,9 +345,20 @@ describe('processNextCodexTask deterministic worker', () => {
   it('does not create another repair task when a repair task fails', async () => {
     const store = createInMemoryStore(() => new Date('2026-06-28T00:00:00.000Z'));
     const root = await makeRoot();
+    const user = await store.ensureUser({
+      id: 'repair-user',
+      email: 'repair@example.com',
+      name: 'Repair User',
+      role: 'creator'
+    });
+    const project = await store.createProject(user, {
+      name: 'Demo Fitness',
+      prompt: 'Create a fitness app',
+      target: 'web'
+    });
     const workspace = await store.createWorkspace({
-      projectId: 'demo-fitness',
-      path: join(root, 'demo-fitness', 'repair-workspace'),
+      projectId: project.id,
+      path: join(root, project.id, 'repair-workspace'),
       status: 'ready'
     });
     const taskSpec = createTaskSpec();
@@ -358,7 +370,7 @@ describe('processNextCodexTask deterministic worker', () => {
       }
     };
     const repairTask = await store.createCodexTask({
-      projectId: 'demo-fitness',
+      projectId: project.id,
       workspaceId: workspace.id,
       taskType: 'repair',
       objective: 'Repair app shell',
@@ -379,10 +391,11 @@ describe('processNextCodexTask deterministic worker', () => {
         }
       }
     });
-    const tasks = await store.listCodexTasks('demo-fitness');
-    const userTraces = (await store.listTraceEvents('demo-fitness', 20)).filter((event) => event.visibility === 'user');
+    const tasks = await store.listCodexTasks(project.id);
+    const userTraces = (await store.listTraceEvents(project.id, 20)).filter((event) => event.visibility === 'user');
 
     expect((await store.getCodexTask(repairTask.id))?.status).toBe('failed');
+    expect((await store.getProjectById(user, project.id))?.status).toBe('build_failed');
     expect(tasks.filter((item) => item.taskType === 'repair')).toHaveLength(1);
     expect(userTraces).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -445,6 +458,134 @@ describe('processNextCodexTask deterministic worker', () => {
     });
     expect(await store.getLatestBuildJob('demo-real')).toBeUndefined();
     expect((await store.listCodexTasks('demo-real')).some((item) => item.taskType === 'repair')).toBe(true);
+  });
+
+  it('accepts mini program output when app content lives in Taro page files', async () => {
+    const store = createInMemoryStore(() => new Date('2026-06-28T00:00:00.000Z'));
+    const root = await makeRoot();
+    const workspace = await store.createWorkspace({
+      projectId: 'demo-mini',
+      path: join(root, 'demo-mini', 'workspace'),
+      status: 'ready'
+    });
+    const taskSpec: CodexTaskSpec = {
+      ...createTaskSpec(),
+      goal: 'Create a coffee ordering mini program.',
+      platform: 'mini_program',
+      appSpec: {
+        ...createTaskSpec().appSpec,
+        appName: '咖啡店预约点单小程序',
+        appGoal: '帮助顾客查看门店介绍并提前预约点单'
+      },
+      allowedPaths: ['src/**', 'ai-manifest.json'],
+      expectedOutputs: ['Taro mini program files', 'ai-manifest.json']
+    };
+    const task = await store.createCodexTask({
+      projectId: 'demo-mini',
+      workspaceId: workspace.id,
+      taskType: 'initial_generate',
+      objective: 'Create mini program',
+      inputSummary: 'Structured mini program summary',
+      taskSpec,
+      allowedPaths: taskSpec.allowedPaths,
+      forbiddenPaths: taskSpec.forbiddenPaths,
+      validationCommands: taskSpec.validationCommands
+    });
+
+    const processed = await processNextCodexTask(store, {
+      workerId: 'mini-quality-worker-1',
+      workspaceRoot: root,
+      executionAdapter: {
+        name: 'mini-output-test-adapter',
+        execute: async ({ workspace: activeWorkspace }) => {
+          await mkdir(join(activeWorkspace.path, 'src/pages/index'), { recursive: true });
+          await writeFile(
+            join(activeWorkspace.path, 'src/pages/index/index.tsx'),
+            '<View data-ai-id="home.hero.title">咖啡店预约点单小程序</View>',
+            'utf8'
+          );
+          await writeFile(join(activeWorkspace.path, 'ai-manifest.json'), JSON.stringify({
+            entries: {
+              'home.hero.title': {
+                aiId: 'home.hero.title',
+                file: 'src/pages/index/index.tsx',
+                component: 'Index',
+                elementType: 'heading',
+                editable: ['text']
+              }
+            }
+          }), 'utf8');
+          return {
+            summary: 'Mini program output',
+            changedFiles: ['src/pages/index/index.tsx', 'ai-manifest.json']
+          };
+        }
+      }
+    });
+
+    expect(processed).toMatchObject({
+      taskId: task.id,
+      status: 'succeeded'
+    });
+    expect(await store.getLatestBuildJob('demo-mini')).toMatchObject({
+      status: 'queued'
+    });
+  });
+
+  it('rejects manifest entries that point to missing source files', async () => {
+    const store = createInMemoryStore(() => new Date('2026-06-28T00:00:00.000Z'));
+    const root = await makeRoot();
+    const workspace = await store.createWorkspace({
+      projectId: 'demo-bad-manifest',
+      path: join(root, 'demo-bad-manifest', 'workspace'),
+      status: 'ready'
+    });
+    const taskSpec = createTaskSpec();
+    await store.createCodexTask({
+      projectId: 'demo-bad-manifest',
+      workspaceId: workspace.id,
+      taskType: 'initial_generate',
+      objective: 'Create app shell',
+      inputSummary: 'Structured task summary',
+      taskSpec,
+      allowedPaths: taskSpec.allowedPaths,
+      forbiddenPaths: taskSpec.forbiddenPaths,
+      validationCommands: taskSpec.validationCommands
+    });
+
+    const processed = await processNextCodexTask(store, {
+      workerId: 'manifest-worker-1',
+      workspaceRoot: root,
+      executionAdapter: {
+        name: 'bad-manifest-test-adapter',
+        execute: async ({ workspace: activeWorkspace }) => {
+          await mkdir(join(activeWorkspace.path, 'src'), { recursive: true });
+          await writeFile(join(activeWorkspace.path, 'src/App.tsx'), '<main data-ai-id="home.title">销售数据看板</main>', 'utf8');
+          await writeFile(join(activeWorkspace.path, 'ai-manifest.json'), JSON.stringify({
+            entries: {
+              'home.title': {
+                aiId: 'home.title',
+                file: 'src/Missing.tsx',
+                component: 'Missing',
+                elementType: 'heading',
+                editable: ['text']
+              }
+            }
+          }), 'utf8');
+          return {
+            summary: 'Bad manifest output',
+            changedFiles: ['src/App.tsx', 'ai-manifest.json']
+          };
+        }
+      }
+    });
+
+    expect(processed).toMatchObject({
+      status: 'failed',
+      errorSummary: expect.stringContaining('ai-manifest.json references missing source files')
+    });
+    expect(await store.getLatestBuildJob('demo-bad-manifest')).toBeUndefined();
+    expect((await store.listCodexTasks('demo-bad-manifest')).some((item) => item.taskType === 'repair')).toBe(true);
   });
 
   it('processes a fake real Docker adapter result through version and build queue creation', async () => {

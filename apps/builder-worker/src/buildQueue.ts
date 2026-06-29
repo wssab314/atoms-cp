@@ -4,7 +4,9 @@ import {
   buildProjectPreview,
   type BuildCommandContext,
   type BuildCommandResult,
-  type BuildProjectFile
+  type BuildProjectFile,
+  type PreviewBuildMode,
+  type PreviewBuildPlatform
 } from './buildProject.js';
 import { createPreviewAccessToken } from './previewAccess.js';
 
@@ -20,6 +22,9 @@ export interface ProcessBuildQueueConfig {
   previewAccessSecret: string;
   previewRoot: string;
   workspaceRoot: string;
+  previewBuildMode?: PreviewBuildMode;
+  templateRoot?: string;
+  taroTemplateRoot?: string;
   runCommand?: (context: BuildCommandContext) => Promise<BuildCommandResult>;
 }
 
@@ -47,14 +52,18 @@ interface ProjectVersionWorkspaceRow extends Record<string, unknown> {
   workspace_path: string | null;
 }
 
-const buildCommand = 'pnpm install && pnpm build';
+interface ProjectTargetRow extends Record<string, unknown> {
+  target: string | null;
+}
+
 const ignoredWorkspaceNames = new Set(['node_modules', 'dist', '.git']);
 
 export async function processNextBuildJob(
   db: Queryable,
   config: ProcessBuildQueueConfig
 ): Promise<ProcessedBuildJob | undefined> {
-  const buildJob = await claimNextBuildJob(db);
+  const previewBuildMode = config.previewBuildMode ?? 'fast';
+  const buildJob = await claimNextBuildJob(db, buildCommandForMode(previewBuildMode));
 
   if (!buildJob) {
     return undefined;
@@ -80,6 +89,7 @@ export async function processNextBuildJob(
     }
   });
   const files = await loadProjectFiles(db, buildJob);
+  const buildPlatform = await loadProjectTarget(db, buildJob.project_id);
 
   if (files.length === 0) {
     const errorSummary = 'Project has no files to build.';
@@ -119,6 +129,9 @@ export async function processNextBuildJob(
     projectFiles: files,
     previewRoot: config.previewRoot,
     workspaceRoot: join(config.workspaceRoot, buildJob.id),
+    buildMode: previewBuildMode,
+    platform: buildPlatform,
+    templateRoot: buildPlatform === 'mini_program' ? config.taroTemplateRoot : config.templateRoot,
     runCommand: config.runCommand
   });
 
@@ -227,7 +240,11 @@ function createPreviewUrl(previewBaseUrl: string, previewId: string, previewAcce
   return url.toString();
 }
 
-async function claimNextBuildJob(db: Queryable): Promise<BuildJobRow | undefined> {
+function buildCommandForMode(buildMode: PreviewBuildMode): string {
+  return buildMode === 'fast' ? 'fast preview build' : 'strict preview build';
+}
+
+async function claimNextBuildJob(db: Queryable, buildCommand: string): Promise<BuildJobRow | undefined> {
   const result = await db.query<BuildJobRow>(
     `update build_jobs
      set status = 'running',
@@ -269,6 +286,18 @@ async function loadProjectFiles(db: Queryable, buildJob: BuildJobRow): Promise<B
     path: row.path,
     content: row.content
   }));
+}
+
+async function loadProjectTarget(db: Queryable, projectId: string): Promise<PreviewBuildPlatform> {
+  const result = await db.query<ProjectTargetRow>(
+    `select target
+     from projects
+     where id = $1
+     limit 1`,
+    [projectId]
+  );
+
+  return result.rows[0]?.target === 'mini_program' ? 'mini_program' : 'web';
 }
 
 async function loadWorkspaceFilesForVersion(db: Queryable, projectVersionId: string): Promise<BuildProjectFile[]> {

@@ -97,8 +97,27 @@ describe('createInitialCodexTaskPlan', () => {
     expect(plan.objective).toContain('客户成功工作台');
     expect(plan.allowedPaths).toContain('src/**');
     expect(plan.forbiddenPaths).toContain('.env');
-    expect(plan.validationCommands).toEqual(['pnpm typecheck', 'pnpm build']);
+    expect(plan.validationCommands).toEqual(['platform preview build', 'ai-manifest validation']);
+    expect(plan.taskSpec.platform).toBe('web');
     expect(plan.inputSummary).toContain('页面: 1');
     expect(JSON.stringify(plan)).not.toContain('RAW_PROMPT_SHOULD_NOT_LEAK');
+  });
+
+  it('creates a Taro-focused plan for mini program projects', () => {
+    const plan = createInitialCodexTaskPlan({
+      project: {
+        ...project,
+        target: 'mini_program'
+      },
+      appSpec,
+      designProfile
+    });
+
+    expect(plan.objective).toContain('mini_program');
+    expect(plan.taskSpec.platform).toBe('mini_program');
+    expect(plan.allowedPaths).toEqual(['src/**', 'ai-manifest.json']);
+    expect(plan.taskSpec.expectedOutputs).toContain('Controlled Taro mini program files');
+    expect(plan.allowedPaths).not.toContain('public/**');
+    expect(plan.allowedPaths).not.toContain('index.html');
   });
 });

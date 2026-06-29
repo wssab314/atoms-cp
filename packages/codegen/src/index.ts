@@ -359,19 +359,30 @@ function renderPackageJson(projectName: string, options: { includeSupabase?: boo
     scripts: {
       dev: 'vite',
       build: 'tsc -b && vite build',
-      preview: 'vite preview'
+      'build:preview': 'vite build --mode preview --minify=false --sourcemap=false',
+      'build:strict': 'tsc -b && vite build',
+      preview: 'vite preview --host 0.0.0.0'
     },
     dependencies: {
-      '@vitejs/plugin-react': '^4.6.0',
+      '@tanstack/react-table': '^8.20.6',
+      clsx: '^2.1.1',
+      'date-fns': '^4.1.0',
+      'framer-motion': '^12.0.0',
+      'lucide-react': '^0.468.0',
       ...(options.includeSupabase ? { '@supabase/supabase-js': '^2.50.0' } : {}),
-      typescript: '^5.7.2',
-      vite: '^5.4.21',
       react: '^19.1.1',
-      'react-dom': '^19.1.1'
+      'react-dom': '^19.1.1',
+      'react-hook-form': '^7.54.2',
+      'react-router-dom': '^7.1.1',
+      recharts: '^2.15.0',
+      zod: '^3.24.1'
     },
     devDependencies: {
+      '@vitejs/plugin-react': '^4.6.0',
       '@types/react': '^19.0.2',
-      '@types/react-dom': '^19.0.2'
+      '@types/react-dom': '^19.0.2',
+      typescript: '^5.7.2',
+      vite: '^5.4.21'
     },
     private: true,
     name: toPackageName(projectName),

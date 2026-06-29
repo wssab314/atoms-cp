@@ -1,0 +1,68 @@
+page {
+  min-height: 100%;
+  background: #f8f8f6;
+  color: #141820;
+}
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 40px 28px 64px;
+}
+
+.hero {
+  box-sizing: border-box;
+  border: 1px solid #e7e8ec;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(23, 26, 31, 0.1);
+  padding: 40px 32px;
+}
+
+.eyebrow {
+  display: block;
+  color: #315cf6;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.title {
+  display: block;
+  margin-top: 18px;
+  color: #141820;
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.lede {
+  display: block;
+  margin-top: 18px;
+  color: #667085;
+  font-size: 28px;
+  line-height: 1.7;
+}
+
+.actions {
+  display: flex;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.primary-action,
+.secondary-action {
+  margin: 0;
+  border-radius: 999px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.primary-action {
+  color: #ffffff;
+  background: #315cf6;
+}
+
+.secondary-action {
+  color: #315cf6;
+  background: #eef3ff;
+}

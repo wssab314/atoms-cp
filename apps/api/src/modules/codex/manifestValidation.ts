@@ -1,5 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, readFile, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, posix } from 'node:path';
 import { aiManifestSchema, type ManifestEditableField } from '@atoms-cp/shared';
 
 const supportedEditableFields = new Set<ManifestEditableField>(['text', 'className', 'styleTokens', 'props']);
@@ -48,6 +48,32 @@ function normalizeEditableFields(value: unknown): ManifestEditableField[] {
   return unique.length > 0 ? unique : ['text'];
 }
 
+function normalizeManifestFilePath(value: string): string | undefined {
+  if (!value || value.includes('\0') || isAbsolute(value)) {
+    return undefined;
+  }
+
+  const normalized = posix.normalize(value.replace(/\\/g, '/'));
+
+  if (normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+async function assertManifestFilesExist(workspacePath: string, entries: Record<string, { file: string }>): Promise<void> {
+  for (const entry of Object.values(entries)) {
+    const normalizedPath = normalizeManifestFilePath(entry.file);
+
+    if (!normalizedPath) {
+      throw new Error('Manifest entry file path is unsafe.');
+    }
+
+    await access(join(workspacePath, normalizedPath));
+  }
+}
+
 export async function normalizeAndValidateAiManifest(input: {
   workspacePath: string;
   errorMessage: string;
@@ -77,6 +103,7 @@ export async function normalizeAndValidateAiManifest(input: {
       ...parsed,
       entries
     });
+    await assertManifestFilesExist(input.workspacePath, manifest.entries);
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   } catch {
     throw new Error(input.errorMessage);

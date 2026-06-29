@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "aiId": "home.hero",
+      "file": "src/pages/index/index.tsx",
+      "component": "Index",
+      "editable": ["layout", "style"]
+    },
+    {
+      "aiId": "home.hero.title",
+      "file": "src/pages/index/index.tsx",
+      "component": "Index",
+      "editable": ["text", "style"]
+    }
+  ]
+}

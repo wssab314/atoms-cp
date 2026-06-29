@@ -56,6 +56,26 @@ const deniedEnvNamePattern = /(SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL|COOKIE|DATAB
 const deniedEnvNames = new Set(['HOME', 'PWD', 'OLDPWD', 'DOCKER_HOST', 'SSH_AUTH_SOCK']);
 const containerSecretPath = '/run/secrets/codex_api_key';
 const containerTaskInstructionPath = '/workspace/task-instruction.json';
+const webAllowedImports = [
+  'react',
+  'react-dom',
+  'react-router-dom',
+  'lucide-react',
+  'recharts',
+  '@tanstack/react-table',
+  'react-hook-form',
+  'zod',
+  'clsx',
+  'date-fns',
+  'framer-motion'
+];
+const miniProgramAllowedImports = [
+  'react',
+  'react-dom',
+  '@tarojs/taro',
+  '@tarojs/components',
+  '@tarojs/react'
+];
 
 function truncateLog(value: string, maxLogBytes: number): string {
   return value.length > maxLogBytes ? `${value.slice(0, maxLogBytes)}\n[log truncated]` : value;
@@ -287,6 +307,11 @@ async function writeTaskInstructionFile(input: CodexExecutionInput): Promise<{ p
     taskSpec: input.task.taskSpec,
     allowedPaths: input.task.allowedPaths,
     forbiddenPaths: input.task.forbiddenPaths,
+    dependencyPolicy: {
+      allowNewDependencies: false,
+      allowedImports: allowedImportsForPlatform(input.task.taskSpec?.platform),
+      note: dependencyPolicyNoteForPlatform(input.task.taskSpec?.platform)
+    },
     validationCommands: input.task.validationCommands
   }, null, 2)}\n`, 'utf8');
 
@@ -296,6 +321,18 @@ async function writeTaskInstructionFile(input: CodexExecutionInput): Promise<{ p
       await rm(directory, { recursive: true, force: true });
     }
   };
+}
+
+function allowedImportsForPlatform(platform: unknown): string[] {
+  return platform === 'mini_program' ? miniProgramAllowedImports : webAllowedImports;
+}
+
+function dependencyPolicyNoteForPlatform(platform: unknown): string {
+  if (platform === 'mini_program') {
+    return 'This is a Taro React WeChat Mini Program. Edit only src/** and ai-manifest.json. Use Taro components and APIs. Manifest entry file values must point to real Taro source files such as src/pages/index/index.tsx, not src/App.tsx. Do not edit package.json, lockfiles, config, tsconfig.json, node_modules, or dist.';
+  }
+
+  return 'This is a React/Vite web app. Only edit source, public, index.html, and ai-manifest.json. Do not edit package.json, lockfiles, tsconfig.json, or vite.config.ts.';
 }
 
 function runDockerCommand(command: DockerCodexCommand): Promise<DockerCodexCommandResult> {

@@ -64,6 +64,8 @@ describe('production deployment config', () => {
     expect(wrapper).toContain('doubao-seed-2-1-turbo-260628');
     expect(wrapper).toContain('CODEX_TASK_INSTRUCTION_FILE');
     expect(wrapper).toContain('https://ark.cn-beijing.volces.com/api/v3');
+    expect(wrapper).toContain('CODEX_DOUBAO_EXECUTOR:-chat_codegen');
+    expect(wrapper).toContain('exec node /app/scripts/doubao-chat-codegen.mjs');
     expect(wrapper).toContain('env_key = "VOLCENGINE_API_KEY"');
     expect(wrapper).toContain('wire_api = "responses"');
     expect(wrapper).toContain('--profile "$profile_name"');

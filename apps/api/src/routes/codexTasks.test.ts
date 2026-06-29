@@ -71,7 +71,7 @@ describe('CodexTask runtime API routes', () => {
         status: 'queued',
         allowedPaths: expect.arrayContaining(['src/**']),
         forbiddenPaths: expect.arrayContaining(['.env']),
-        validationCommands: ['pnpm typecheck', 'pnpm build']
+        validationCommands: ['platform preview build', 'ai-manifest validation']
       });
       expect(JSON.stringify(created.json().codexTask)).not.toContain(rawPromptMarker);
       expect(created.json().traceEvent).toMatchObject({

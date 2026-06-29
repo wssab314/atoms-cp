@@ -143,10 +143,85 @@ describe('runtime artifact schemas', () => {
     });
 
     expect(task.allowedPaths).toContain('src/**');
+    expect(task.taskSpec?.platform).toBe('web');
     expect(task.taskSpec?.dependencyPolicy).toBe('forbid_new_dependencies');
     expect(task.status).toBe('preparing_workspace');
     expect(task.attemptCount).toBe(1);
     expect(JSON.stringify(task)).not.toContain('rawPrompt');
+  });
+
+  it('validates mini program CodexTask specs', () => {
+    const taskSpec = codexTaskSpecSchema.parse({
+      goal: 'Create the first runnable mini program.',
+      platform: 'mini_program',
+      appSpec: {
+        appName: '预约小程序',
+        appGoal: '帮助用户预约服务',
+        targetUser: '门店客户',
+        pages: [
+          {
+            id: 'home',
+            name: '首页',
+            route: '/',
+            purpose: '展示预约入口',
+            sections: [
+              {
+                id: 'hero',
+                kind: 'hero',
+                title: '快速预约',
+                content: '展示服务介绍和预约入口。'
+              }
+            ],
+            actions: []
+          }
+        ],
+        styleIntent: {
+          tone: 'calm',
+          layoutDensity: 'comfortable'
+        },
+        acceptanceCriteria: ['可以看到预约入口']
+      },
+      designProfile: {
+        id: 'quiet-mini',
+        name: 'Quiet Mini',
+        description: '安静的小程序视觉。',
+        bestFor: '微信小程序',
+        designTokens: {
+          colors: {
+            background: '#F8F8F6',
+            foreground: '#171A1F',
+            primary: '#315CF6',
+            secondary: '#EEF3FF',
+            muted: '#667085',
+            border: '#E7E8EC',
+            accent: '#20B26B'
+          },
+          typography: {
+            headingFont: 'Inter',
+            bodyFont: 'Inter',
+            scale: 'comfortable'
+          },
+          radius: 'lg',
+          shadow: 'subtle',
+          density: 'balanced'
+        },
+        layoutGuidelines: ['Use one primary page.'],
+        componentGuidelines: ['Use Taro components.'],
+        previewDescription: '小程序预览。'
+      },
+      targetChange: {
+        type: 'initial_generate',
+        summary: 'Generate the initial mini program.'
+      },
+      allowedPaths: ['src/**', 'ai-manifest.json'],
+      forbiddenPaths: ['package.json', 'node_modules/**', 'dist/**'],
+      dependencyPolicy: 'forbid_new_dependencies',
+      validationCommands: ['platform preview build', 'ai-manifest validation'],
+      expectedOutputs: ['Taro mini program files', 'ai-manifest.json']
+    });
+
+    expect(taskSpec.platform).toBe('mini_program');
+    expect(taskSpec.allowedPaths).toEqual(['src/**', 'ai-manifest.json']);
   });
 
   it('rejects raw prompts in structured CodexTask specs', () => {

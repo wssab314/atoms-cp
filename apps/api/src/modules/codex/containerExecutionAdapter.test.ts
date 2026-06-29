@@ -20,6 +20,7 @@ async function makeRoot() {
 function createTaskSpec(): CodexTaskSpec {
   return {
     goal: 'Create a quiet personal site.',
+    platform: 'web',
     appSpec: {
       appName: '个人网站',
       appGoal: '展示个人介绍、作品和联系方式',
@@ -181,6 +182,43 @@ describe('ContainerExecutionAdapter', () => {
     expect(taskInstruction).not.toContain('validationCommands');
     expect(taskInstruction).toContain('platformValidation');
     expect(taskInstruction).toContain('Do not run package installation');
+  });
+
+  it('can forward the Doubao executor selector without exposing unsafe environment values', async () => {
+    const root = await makeRoot();
+    const workspacePath = join(root, 'workspace');
+    const commands: ContainerCodexCommand[] = [];
+    const adapter = createContainerExecutionAdapter({
+      timeoutMs: 90000,
+      maxLogBytes: 65536,
+      realExecutionEnabled: true,
+      realCommand: '/app/scripts/codex-doubao21-exec.sh',
+      realPreflightOnly: false,
+      secretFilePath: '/run/secrets/volcengine_api_key',
+      hostEnv: {
+        ...process.env,
+        CODEX_DOUBAO_EXECUTOR: 'chat_codegen',
+        VOLCENGINE_API_KEY: 'ark-should-not-forward'
+      },
+      runCommand: async (command) => {
+        commands.push(command);
+        await writeFile(join(command.cwd, 'src', 'container-output.ts'), 'export const containerOutput = true;\n', 'utf8');
+        return {
+          exitCode: 0,
+          stdout: 'container command ok',
+          stderr: ''
+        };
+      }
+    });
+
+    await adapter.execute({
+      task: createTask(createTaskSpec()),
+      workspace: createWorkspace(workspacePath)
+    });
+
+    expect(commands[0]?.env.CODEX_DOUBAO_EXECUTOR).toBe('chat_codegen');
+    expect(JSON.stringify(commands[0]?.env)).not.toContain('ark-should-not-forward');
+    expect(commands[0]?.env.VOLCENGINE_API_KEY).toBeUndefined();
   });
 
   it('emits heartbeat progress and stops an idle command before the hard timeout', async () => {

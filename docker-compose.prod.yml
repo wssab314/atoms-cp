@@ -17,6 +17,9 @@ x-app-env: &app-env
   ALLOWED_CORS_ORIGINS: ${ALLOWED_CORS_ORIGINS:?ALLOWED_CORS_ORIGINS is required}
   PREVIEW_BASE_URL: ${PREVIEW_BASE_URL:?PREVIEW_BASE_URL is required}
   PREVIEW_ROOT_DIR: /var/lib/atoms-cp/previews
+  PREVIEW_BUILD_MODE: ${PREVIEW_BUILD_MODE:-fast}
+  PREVIEW_TEMPLATE_ROOT: ${PREVIEW_TEMPLATE_ROOT:-/app/packages/generated-app-template}
+  TARO_PREVIEW_TEMPLATE_ROOT: ${TARO_PREVIEW_TEMPLATE_ROOT:-/app/packages/generated-taro-template}
   CODEX_WORKSPACE_ROOT: /var/lib/atoms-cp/workspaces
   BUILD_WORKSPACE_ROOT: /var/lib/atoms-cp/build-workspaces
   WORKSPACE_RETENTION_DAYS: ${WORKSPACE_RETENTION_DAYS:-7}

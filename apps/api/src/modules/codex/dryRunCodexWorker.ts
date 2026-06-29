@@ -149,7 +149,17 @@ function readManifest(files: Array<{ path: string; content: string }>): AiManife
     throw new Error('ai-manifest.json was not generated.');
   }
 
-  return aiManifestSchema.parse(JSON.parse(manifestFile.content));
+  const manifest = aiManifestSchema.parse(JSON.parse(manifestFile.content));
+  const filePaths = new Set(files.map((file) => file.path));
+  const missingManifestFiles = Object.values(manifest.entries)
+    .map((entry) => entry.file)
+    .filter((filePath) => !filePaths.has(filePath));
+
+  if (missingManifestFiles.length > 0) {
+    throw new Error(`ai-manifest.json references missing source files: ${missingManifestFiles.slice(0, 3).join(', ')}.`);
+  }
+
+  return manifest;
 }
 
 async function executeDefaultDryRun(
@@ -210,9 +220,12 @@ async function failTask(
     status: 'failed'
   });
 
+  let repairQueued = false;
+
   if (task.taskType !== 'repair' && task.taskSpec) {
     const repairTask = await createRepairTask(store, task, input.workspace);
     if (repairTask) {
+      repairQueued = true;
       await appendTaskTrace(store, task, {
         type: 'codex_task_created',
         visibility: 'user',
@@ -223,6 +236,10 @@ async function failTask(
         }
       });
     }
+  }
+
+  if (!repairQueued) {
+    await store.setProjectStatus(task.projectId, 'build_failed');
   }
 
   return {
@@ -290,9 +307,13 @@ async function createRepairTask(
       type: 'repair' as const,
       summary: 'Repair invalid generated output and make the app buildable.'
     },
-    allowedPaths: ['src/**', 'index.html', 'ai-manifest.json'],
+    allowedPaths: failedTask.taskSpec.platform === 'mini_program'
+      ? ['src/**', 'ai-manifest.json']
+      : ['src/**', 'index.html', 'ai-manifest.json'],
     forbiddenPaths: ['.env', 'node_modules/**', 'dist/**', '.git/**', '../**', '/**'],
-    expectedOutputs: ['Fixed React/Vite app files', 'Valid ai-manifest.json', 'Buildable preview']
+    expectedOutputs: failedTask.taskSpec.platform === 'mini_program'
+      ? ['Fixed Taro mini program files', 'Valid ai-manifest.json', 'Buildable preview']
+      : ['Fixed React/Vite app files', 'Valid ai-manifest.json', 'Buildable preview']
   };
   return await store.createCodexTask({
     projectId: failedTask.projectId,
@@ -338,8 +359,19 @@ function projectVersionSourceForTask(task: CodexTaskRecord): ProjectVersionSourc
   return 'initial_generate';
 }
 
+function generatedSourceContent(task: CodexTaskRecord, files: GeneratedFile[]): string {
+  if (task.taskSpec?.platform === 'mini_program') {
+    return files
+      .filter((file) => file.path.startsWith('src/') && /\.(ts|tsx|js|jsx)$/.test(file.path))
+      .map((file) => file.content)
+      .join('\n');
+  }
+
+  return files.find((file) => file.path === 'src/App.tsx')?.content ?? '';
+}
+
 function validateGeneratedQuality(task: CodexTaskRecord, files: GeneratedFile[], manifest: AiManifest): void {
-  const appFile = files.find((file) => file.path === 'src/App.tsx')?.content ?? '';
+  const appSource = generatedSourceContent(task, files);
   const manifestEntryCount = Object.keys(manifest.entries).length;
   const bannedPhrases = ['用户需求已整理为结构化产品规格', '用户需求已整理', '结构化产品规格'];
 
@@ -347,13 +379,13 @@ function validateGeneratedQuality(task: CodexTaskRecord, files: GeneratedFile[],
     throw new Error('Generated app has too few editable elements.');
   }
 
-  if (bannedPhrases.some((phrase) => appFile.includes(phrase))) {
+  if (bannedPhrases.some((phrase) => appSource.includes(phrase))) {
     throw new Error('Generated app still contains generic placeholder content.');
   }
 
   const appName = task.taskSpec?.appSpec.appName;
   const appGoalKeyword = task.taskSpec?.appSpec.appGoal.slice(0, 4);
-  if (task.taskType === 'initial_generate' && appName && !appFile.includes(appName) && appGoalKeyword && !appFile.includes(appGoalKeyword)) {
+  if (task.taskType === 'initial_generate' && appName && !appSource.includes(appName) && appGoalKeyword && !appSource.includes(appGoalKeyword)) {
     throw new Error('Generated app does not reflect the requested app direction.');
   }
 }

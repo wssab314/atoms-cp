@@ -20,6 +20,7 @@ async function makeRoot() {
 function createTaskSpec(): CodexTaskSpec {
   return {
     goal: 'Create a quiet dashboard.',
+    platform: 'web',
     appSpec: {
       appName: '销售数据看板',
       appGoal: '帮助运营团队查看销售趋势',

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "aiId": "home.root",
+      "file": "src/App.tsx",
+      "component": "App",
+      "editable": ["layout", "style"]
+    },
+    {
+      "aiId": "home.title",
+      "file": "src/App.tsx",
+      "component": "App",
+      "editable": ["text", "style"]
+    }
+  ]
+}
