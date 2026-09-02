@@ -25,7 +25,7 @@
     "@atoms-cp/shared": "workspace:*",
     "@fastify/cors": "^10.0.2",
     "dotenv": "^16.4.7",
-    "fastify": "^5.1.0",
+    "fastify": "^5.12.1",
     "pg": "^8.22.0",
     "zod": "^3.24.1"
   },
